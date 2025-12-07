@@ -53,6 +53,14 @@ const descriptionOverrides: Record<string, string> = {
 const titleOverrides: Record<string, string> = {
   // '2025-05-10-06.png': 'Custom Title',
 };
+const timelineLabelOverrides: Record<string, string> = {
+  '2022-08-14.JPG': 'Graduation',
+  '2023-03-01.jpeg': '399开张',
+  '2024-10-20-3.jpeg': 'Bye Caroline',
+  '2024-11-17-1.jpeg': '吴情吴义',
+  '2025-10-31.jpeg': '多邻国之神',
+  '2025-12-04.jpeg': '最后一日',
+};
 
 type MediaEntry = {
   filename: string;
@@ -124,7 +132,7 @@ export const MEDIA_DATA: MediaItem[] = mediaEntries
     src: entry.src,
     previewSrc: entry.previewSrc,
     embedUrl: entry.embedUrl,
-    timelineLabel: entry.timelineLabel,
+    timelineLabel: entry.timelineLabel || timelineLabelOverrides[entry.filename],
     // Title is just the date (parsed from filename or override), ignoring suffixes.
     title: (entry.dateOverride || parseDateFromName(entry.filename)),
     description: entry.description ?? descriptionOverrides[entry.filename] ?? '',

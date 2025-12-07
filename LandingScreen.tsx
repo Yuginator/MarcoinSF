@@ -39,7 +39,7 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
   const [hasClicked, setHasClicked] = useState(false);
   const [holdHeart, setHoldHeart] = useState<Heart | null>(null);
   const [marks, setMarks] = useState<HeartMark[]>([]);
-  const subtitleFull = `Chef of SF's Finest Egg Fried Rice, Tennis 5.0 Player and Coach, Poet of Three-and-No-More Verses, Informal Member of the 399, Examiner of All Furry Friends, King of Monkeys, Award-winning Transgender Actor, Watermelon Annihilator, 华埠老广地陪, Slayer of 100+ Arkvelds, 成功者...`;
+  const subtitleFull = `Chef of SF's Finest Egg Fried Rice, Tennis 5.0 Player and Coach, Poet of Three-and-No-More Verses, Informal Member of the 399, Examiner of All Furry Friends, King of Monkeys, Award-winning Transgender Actor, Watermelon Annihilator, 华埠老广地陪, Slayer of 100+ Arkvelds,连续戒烟成功者...`;
   const [typedSubtitle, setTypedSubtitle] = useState('');
   const heartIdRef = useRef(0);
   const isHoldingRef = useRef(false);

@@ -881,23 +881,6 @@ const App: React.FC = () => {
   const zForProgress = (pct: number) => zStartForTimeline - pct * totalZDistForTimeline;
   const focusPctFromPct = (pct: number) => progressForZ(zForProgress(pct) + CONFIG.TIMELINE_FOCUS_OFFSET);
 
-  const yearPins = (() => {
-    const firstByYear: Record<string, LayoutItem> = {};
-    layout.forEach(item => {
-      const match = item.date.match(/(\d{4})/);
-      const yr = match ? match[1] : 'Year';
-      if (!firstByYear[yr]) firstByYear[yr] = item;
-    });
-    return Object.entries(firstByYear)
-      .map(([year, item]) => ({
-        id: `year-${year}`,
-        label: year,
-        pct: progressForZ(item.z),
-        focusPct: progressForZ(item.z + CONFIG.TIMELINE_FOCUS_OFFSET),
-      }))
-      .sort((a, b) => parseInt(a.label, 10) - parseInt(b.label, 10));
-  })();
-
   const timelinePins = layout
     .filter(item => item.timelineLabel)
     .map(item => ({
@@ -1089,23 +1072,6 @@ const App: React.FC = () => {
           onMouseMove={handleTimelineMouseMove}
           onMouseLeave={handleTimelineMouseLeave}
         >
-          {yearPins.map(pin => (
-            <button
-              key={pin.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                scrollToPercent(pin.focusPct);
-              }}
-              className="absolute flex flex-col items-center group/year transition-transform duration-150"
-              style={{ left: `calc(${pin.pct * 100}% - 6px)`, bottom: '20px', zIndex: 12 }}
-              title={pin.label}
-            >
-              <span className="text-[10px] font-semibold text-gray-700 px-2 py-0.5 bg-white border border-gray-300 rounded shadow-sm whitespace-nowrap">
-                {pin.label}
-              </span>
-              <span className="w-2 h-2 rounded-full bg-gray-700 mt-1" />
-            </button>
-          ))}
           {timelinePins.map(pin => (
             <button
               key={pin.id}
