@@ -1,0 +1,5 @@
+{
+  "name": "Minimalist 3D Photo Gallery",
+  "description": "A scroll-controlled 3D photo gallery using React and Three.js where the camera moves through a corridor of floating images.",
+  "requestFramePermissions": []
+}
