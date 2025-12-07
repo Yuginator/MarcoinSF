@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MEDIA_DATA } from './mediaData';
+import { MEDIA_DATA, MediaItem } from './mediaData';
 import coverVideo from './assets/cover/cover.mp4';
 import balloonSfx from './assets/audio/Balloon.wav';
 import typingSfx from './assets/audio/Typing.mp3';
@@ -56,7 +56,20 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
   // 1. Preloading Simulation
   useEffect(() => {
     let loaded = 0;
-    const total = MEDIA_DATA.length;
+    const extraPreload = MEDIA_DATA.slice(0, 4); // first few media for fast first view
+    const preloadable = [
+      { src: coverVideo, previewSrc: coverVideo, type: 'video' as const },
+      ...MEDIA_DATA.filter((item: MediaItem) => item.type === 'image'),
+      ...extraPreload,
+    ];
+    const seen = new Set<string>();
+    const uniquePreload = preloadable.filter(item => {
+      const key = item.previewSrc || item.src;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const total = uniquePreload.length || 1;
     
     const preloadImage = (src: string) => {
         return new Promise<void>((resolve) => {
@@ -68,17 +81,22 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
     };
 
     const loadAll = async () => {
-        const promises = MEDIA_DATA.map(item => 
+        const promises = uniquePreload.map(item => 
             preloadImage(item.previewSrc || item.src).then(() => {
                 loaded++;
                 setLoadingProgress(Math.floor((loaded / total) * 100));
             })
         );
         await Promise.all(promises);
-        setTimeout(() => setIsReady(true), 500);
+        setTimeout(() => setIsReady(true), 300);
     };
     
-    loadAll();
+    const fallback = setTimeout(() => {
+      setLoadingProgress(100);
+      setIsReady(true);
+    }, 6000);
+
+    loadAll().finally(() => clearTimeout(fallback));
   }, []);
 
   // Typing effect for subtitle

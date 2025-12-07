@@ -16,7 +16,8 @@ export interface MediaItem {
   timelineLabel?: string;
   title: string;
   description: string;
-  date: string; // Added date field
+  date: string;
+  filename: string; // Added filename field for dimension lookup
 }
 
 export interface MusicTrack {
@@ -54,12 +55,11 @@ const titleOverrides: Record<string, string> = {
   // '2025-05-10-06.png': 'Custom Title',
 };
 const timelineLabelOverrides: Record<string, string> = {
-  '2022-08-14.JPG': 'Graduation',
   '2023-03-01.jpeg': '399开张',
   '2024-10-20-3.jpeg': 'Bye Caroline',
   '2024-11-17-1.jpeg': '吴情吴义',
   '2025-10-31.jpeg': '多邻国之神',
-  '2025-12-04.jpeg': '最后一日',
+  '2025-12-04.jpeg': 'Last Day',
 };
 
 type MediaEntry = {
@@ -87,19 +87,21 @@ const mediaEntries: MediaEntry[] = Object.entries(mediaModules)
     if (!isVideo && !isImage) return null;
     const type: MediaType = isVideo ? 'video' : 'image';
     const sortKey = parseDateFromName(filename);
-    return {
+
+    const entry: MediaEntry = {
       filename,
       src,
       previewSrc: src,
       type,
       sortKey,
     };
+    return entry;
   })
-  .filter((entry): entry is MediaEntry => Boolean(entry));
+  .filter((entry): entry is MediaEntry => entry !== null);
 
 // External embeds (e.g., Vimeo)
 mediaEntries.push({
-  filename: '2025-05-10-vimeo',
+  filename: 'Ignore_2025-05-10-06.png',
   src: 'https://vimeo.com/1083175160/86c067f4f9',
   previewSrc: vimeoPreview,
   embedUrl: 'https://player.vimeo.com/video/1083175160?h=86c067f4f9',
@@ -112,7 +114,7 @@ mediaEntries.push({
 });
 
 mediaEntries.push({
-  filename: '2024-08-23-vimeo',
+  filename: 'Ignore_2024-08-23-5.png',
   src: 'https://vimeo.com/1144210034',
   previewSrc: vimeoPreview20240823,
   embedUrl: 'https://player.vimeo.com/video/1144210034',
@@ -137,4 +139,5 @@ export const MEDIA_DATA: MediaItem[] = mediaEntries
     title: (entry.dateOverride || parseDateFromName(entry.filename)),
     description: entry.description ?? descriptionOverrides[entry.filename] ?? '',
     date: entry.dateOverride || parseDateFromName(entry.filename),
+    filename: entry.filename, // Populate filename
   }));
