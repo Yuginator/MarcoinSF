@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { MEDIA_DATA, MUSIC_TRACKS, MediaItem, MusicTrack } from './mediaData';
 import LandingScreen from './LandingScreen';
 import TennisRainTransition from './TennisRainTransition';
+import timelinePinIcon from './assets/icons/timelinePin.svg';
 
 // --- Types & Interfaces ---
 
@@ -36,7 +37,8 @@ const CONFIG = {
   
   // Scroll Physics
   MAX_SCROLL_SPEED: 0.15,
-  HOVER_MIN_SPEED_FACTOR: 0.05, 
+  HOVER_MIN_SPEED_FACTOR: 0.05,
+  TIMELINE_FOCUS_OFFSET: 4,
 };
 
 // --- Data Generation ---
@@ -835,10 +837,7 @@ const App: React.FC = () => {
     setSelectedMedia(null);
   };
 
-  const handleTimelineClick = (e: React.MouseEvent) => {
-    if (isOverlayOpen || !hasEntered) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+  const scrollToPercent = (pct: number) => {
     const maxScroll = document.body.scrollHeight - window.innerHeight;
     const targetY = pct * maxScroll;
     targetScrollProgressRef.current = pct;
@@ -862,9 +861,52 @@ const App: React.FC = () => {
     timelineScrollRafRef.current = requestAnimationFrame(stepScroll);
   };
 
+  const handleTimelineClick = (e: React.MouseEvent) => {
+    if (isOverlayOpen || !hasEntered) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+    scrollToPercent(focusPctFromPct(pct));
+  };
+
   const togglePanel = (panel: 'audio' | 'general' | 'credit') => {
       setActivePanel(activePanel === panel ? null : panel);
   };
+
+  const zStartForTimeline = CONFIG.CAMERA_START_Z;
+  const lastItemZForTimeline = layout[layout.length - 1].z;
+  const zEndForTimeline = lastItemZForTimeline + 5;
+  const totalZDistForTimeline = zStartForTimeline - zEndForTimeline || 1;
+
+  const progressForZ = (z: number) => Math.min(Math.max((zStartForTimeline - z) / totalZDistForTimeline, 0), 1);
+  const zForProgress = (pct: number) => zStartForTimeline - pct * totalZDistForTimeline;
+  const focusPctFromPct = (pct: number) => progressForZ(zForProgress(pct) + CONFIG.TIMELINE_FOCUS_OFFSET);
+
+  const yearPins = (() => {
+    const firstByYear: Record<string, LayoutItem> = {};
+    layout.forEach(item => {
+      const match = item.date.match(/(\d{4})/);
+      const yr = match ? match[1] : 'Year';
+      if (!firstByYear[yr]) firstByYear[yr] = item;
+    });
+    return Object.entries(firstByYear)
+      .map(([year, item]) => ({
+        id: `year-${year}`,
+        label: year,
+        pct: progressForZ(item.z),
+        focusPct: progressForZ(item.z + CONFIG.TIMELINE_FOCUS_OFFSET),
+      }))
+      .sort((a, b) => parseInt(a.label, 10) - parseInt(b.label, 10));
+  })();
+
+  const timelinePins = layout
+    .filter(item => item.timelineLabel)
+    .map(item => ({
+      id: item.id,
+      label: item.timelineLabel as string,
+      pct: progressForZ(item.z),
+      focusPct: progressForZ(item.z + CONFIG.TIMELINE_FOCUS_OFFSET),
+      z: item.z,
+    }));
 
   return (
     <>
@@ -1024,8 +1066,13 @@ const App: React.FC = () => {
                         </div>
                         <div className="text-xs text-gray-600 leading-relaxed">
                             <p className="mb-2"><strong>Coming Soon</strong></p>
-                            <p className="mb-2">A minimalist, immersive experience combining spatial audio and hand-drawn aesthetics.</p>
-                            <p>Built with Gemini 3 Pro, GPT and their humble human operators with React, Three.js & Wired Elements.</p>
+                            <p className="mb-2">This gallery would like to thank the generous photo donors, who bravely surrendered their most questionable selfies. <br></br>Special thanks to the friends who helped build this website—your debugging tears now live forever in this exhibit.</p>
+<br></br>
+                            <p>Built with Gemini 3 Pro, GPT, Suno and their humble human operators with React, Three.js & Wired Elements.</p>
+                            <br></br>
+                               <p>BGM from YouTube:
+                                https://www.youtube.com/watch?v=bYkyj1GbdGU&list=RDssxbJpuzruQ&index=4, https://www.youtube.com/results?search_query=%E5%AF%8C%E5%A3%AB%E5%B1%B1%E4%B8%8B+low+fi
+                                 </p>
                         </div>
                     {/* @ts-ignore */}
                     </wired-card>
@@ -1034,31 +1081,68 @@ const App: React.FC = () => {
         </div>
 
       </div>
-
       {hasEntered && (
-        <div 
-            className="fixed bottom-0 left-0 w-full h-4 bg-gray-200 cursor-pointer z-20 group hover:h-6 transition-all border-t-2 border-gray-400 border-dashed animate-fade-in"
-            onClick={handleTimelineClick}
-            onMouseMove={handleTimelineMouseMove}
-            onMouseLeave={handleTimelineMouseLeave}
+        <div
+          className="fixed left-0 right-0 bottom-0 h-4 bg-gray-200 cursor-pointer z-30 group hover:h-6 transition-all border-t-2 border-gray-400 border-dashed animate-fade-in relative"
+          style={{ position: 'fixed', bottom: 0, left: 0, right: 0, top: 'auto' }}
+          onClick={handleTimelineClick}
+          onMouseMove={handleTimelineMouseMove}
+          onMouseLeave={handleTimelineMouseLeave}
         >
-            <div 
+          {yearPins.map(pin => (
+            <button
+              key={pin.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                scrollToPercent(pin.focusPct);
+              }}
+              className="absolute flex flex-col items-center group/year transition-transform duration-150"
+              style={{ left: `calc(${pin.pct * 100}% - 6px)`, bottom: '20px', zIndex: 12 }}
+              title={pin.label}
+            >
+              <span className="text-[10px] font-semibold text-gray-700 px-2 py-0.5 bg-white border border-gray-300 rounded shadow-sm whitespace-nowrap">
+                {pin.label}
+              </span>
+              <span className="w-2 h-2 rounded-full bg-gray-700 mt-1" />
+            </button>
+          ))}
+          {timelinePins.map(pin => (
+            <button
+              key={pin.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                scrollToPercent(pin.focusPct);
+              }}
+              className="absolute flex flex-col items-center group/pin transition-transform duration-150"
+              style={{ left: `calc(${pin.pct * 100}% - 6px)`, bottom: '8px', zIndex: 10 }}
+              title={pin.label}
+            >
+              <span className="text-[10px] font-semibold text-gray-700 mb-1 px-2 py-0.5 bg-white border border-gray-300 rounded shadow-sm whitespace-nowrap">
+                {pin.label}
+              </span>
+              <img
+                src={timelinePinIcon}
+                alt={pin.label}
+                className="w-4 h-4 drop-shadow group-hover/pin:scale-110 transition-transform duration-150"
+              />
+            </button>
+          ))}
+          <div
             ref={timelineRef}
-            className="h-full bg-blue-500 relative transition-all duration-75"
-            style={{ width: '0%', backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjNDI5OUUxIi8+CjxwYXRoIGQ9Ik0wIDBMNCA0Wk00IDBMMCA0WiIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==")'}}
-            />
-            {timelineHoverDate && (
-                <div 
-                    className="absolute bottom-8 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded pointer-events-none whitespace-nowrap"
-                    style={{ left: timelineHoverPos }}
-                >
-                    {timelineHoverDate}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black"></div>
-                </div>
-            )}
+            className="h-full bg-blue-500 relative transition-all duration-75 z-0"
+            style={{ width: '0%', backgroundImage: "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjNDI5OUUxIi8+CjxwYXRoIGQ9Ik0wIDBMNCA0Wk00IDBMMCA0WiIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==')" }}
+          />
+          {timelineHoverDate && (
+            <div
+              className="absolute bottom-8 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded pointer-events-none whitespace-nowrap z-50"
+              style={{ left: timelineHoverPos }}
+            >
+              {timelineHoverDate}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black"></div>
+            </div>
+          )}
         </div>
       )}
-
       {isOverlayOpen && selectedMedia && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div 
@@ -1084,7 +1168,11 @@ const App: React.FC = () => {
                         )}
                         {selectedMedia.type === 'embed' && (
                             <iframe
-                                src={selectedMedia.embedUrl || selectedMedia.src}
+                                src={(() => {
+                                  const base = selectedMedia.embedUrl || selectedMedia.src;
+                                  const sep = base.includes('?') ? '&' : '?';
+                                  return `${base}${sep}autoplay=1&muted=1&playsinline=1&loop=1&controls=1`;
+                                })()}
                                 className="w-full h-full"
                                 allow="autoplay; fullscreen; picture-in-picture"
                                 allowFullScreen
