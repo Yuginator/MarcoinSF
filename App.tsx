@@ -344,6 +344,14 @@ const App: React.FC = () => {
   const isVideoMutedRef = useRef(false);
   const bgmVolumeRef = useRef(1.0);
 
+  // Virtual Scroll Refs
+  const virtualScrollYRef = useRef(0);
+  const maxScrollRef = useRef(0);
+  const velocityRef = useRef(0); // Current velocity (pixels / frame)
+  const isDraggingRef = useRef(false);
+  const lastTouchYRef = useRef(0);
+  const lastDragTimeRef = useRef(0);
+
   // Sync refs
   useEffect(() => {
     isOverlayOpenRef.current = isOverlayOpen;
@@ -415,6 +423,8 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'auto' });
     scrollProgressRef.current = 0;
     targetScrollProgressRef.current = 0;
+    virtualScrollYRef.current = 0; // Reset virtual scroll
+    velocityRef.current = 0; // Reset momentum
     setIsTransitioning(true);
   };
 
@@ -454,6 +464,87 @@ const App: React.FC = () => {
   const handleTimelineMouseLeave = () => {
     setTimelineHoverDate(null);
   };
+
+  // --- Virtual Scroll Setup ---
+  // Derived state for scroll calculations
+  const zStartRaw = CONFIG.CAMERA_START_Z;
+  const lastItemZRaw = layout[layout.length - 1].z;
+  const totalZDist = zStartRaw - (lastItemZRaw + 5); // Start - End
+  const pixelsPerZ = 250 / scrollSensitivity;
+
+  // Update max scroll when layout/sensitivity changes
+  useEffect(() => {
+    maxScrollRef.current = totalZDist * pixelsPerZ;
+  }, [totalZDist, pixelsPerZ]);
+
+  // Virtual Scroll Listener & Physics
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (isOverlayOpenRef.current || !hasEnteredRef.current) return;
+      // Wheel acts as immediate movement + impulse
+      // For trackpads, deltaY is small and frequent. For wheels, large and singular.
+      virtualScrollYRef.current += e.deltaY;
+      virtualScrollYRef.current = Math.max(0, Math.min(virtualScrollYRef.current, maxScrollRef.current));
+
+      // Kill existing momentum on manual intervention
+      velocityRef.current = 0;
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, wired-slider, input, .wired-rendered')) return;
+
+      isDraggingRef.current = true;
+      velocityRef.current = 0; // Stop momentum
+      lastTouchYRef.current = e.touches[0].clientY;
+      lastDragTimeRef.current = performance.now();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, wired-slider, input, .wired-rendered')) return;
+      if (isOverlayOpenRef.current || !hasEnteredRef.current) return;
+
+      e.preventDefault();
+
+      const touchY = e.touches[0].clientY;
+      const deltaY = lastTouchYRef.current - touchY;
+      lastTouchYRef.current = touchY;
+
+      // 1:1 Movement
+      virtualScrollYRef.current += deltaY;
+      virtualScrollYRef.current = Math.max(0, Math.min(virtualScrollYRef.current, maxScrollRef.current));
+
+      // Calculate instantaneous velocity for momentum on release
+      const now = performance.now();
+      const dt = now - lastDragTimeRef.current;
+      lastDragTimeRef.current = now;
+
+      // Moving average for smoother release velocity
+      if (dt > 0) {
+        const newVel = deltaY; // pixels per event
+        // Lerp velocity for smoothing
+        velocityRef.current = velocityRef.current * 0.5 + newVel * 0.5;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      isDraggingRef.current = false;
+      // Momentum will be picked up by animate loop using velocityRef.current
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('touchstart', handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
 
   // --- Three.js Setup & Loop ---
   useEffect(() => {
@@ -685,32 +776,13 @@ const App: React.FC = () => {
       delete loadedMap[id];
     };
 
-    // 4. Scroll Calculation
+    // 4. Scroll Calculation (Variables for internal logic if needed)
     const zStart = CONFIG.CAMERA_START_Z;
     const lastItemZ = layout[layout.length - 1].z;
     const zEnd = lastItemZ + 5;
+    // Note: Scroll listeners moved to top-level useEffect to avoid "Invalid Hook Call" error
 
-    const totalZDist = zStart - zEnd;
 
-    // NEW: Use scrollSensitivity to adjust scroll height
-    // Lower sensitivity (0.5x) = Taller page (more scrolling needed)
-    // Higher sensitivity (2.0x) = Shorter page (less scrolling needed)
-    const basePixelsPerZ = 250;
-    const pixelsPerZ = basePixelsPerZ / scrollSensitivity;
-
-    const scrollHeight = totalZDist * pixelsPerZ + window.innerHeight;
-    document.body.style.height = `${scrollHeight}px`;
-
-    // 5. Scroll Listener
-    const handleScroll = () => {
-      if (isOverlayOpenRef.current || !hasEnteredRef.current) return;
-
-      const maxScroll = document.body.scrollHeight - window.innerHeight;
-      if (maxScroll > 0) {
-        targetScrollProgressRef.current = Math.max(0, Math.min(1, window.scrollY / maxScroll));
-      }
-    };
-    window.addEventListener('scroll', handleScroll);
 
     // 6. Raycaster & Hover
     const raycaster = new THREE.Raycaster();
@@ -824,24 +896,51 @@ const App: React.FC = () => {
         const targetSlowdown = hoveredMediaIdRef.current ? CONFIG.HOVER_MIN_SPEED_FACTOR : 1.0;
         hoverSlowdownRef.current += (targetSlowdown - hoverSlowdownRef.current) * 0.1;
 
-        if (autoScrollSpeedRef.current > 0) {
-          const effectiveSpeed = autoScrollSpeedRef.current * hoverSlowdownRef.current;
-          if (effectiveSpeed > 0.01) {
-            window.scrollBy(0, effectiveSpeed);
+        if (!isDraggingRef.current) {
+          // Unified Physics Controller
+          // 1. Determine Target Velocity
+          // If auto-scroll is ON, our 'rest state' is moving forward.
+          // If auto-scroll is OFF, our 'rest state' is 0 (stop).
+          let targetVel = 0;
+          if (autoScrollSpeedRef.current > 0) {
+            const currentPixelsPerZ = 250 / scrollSensitivityRef.current;
+            // Calculate cruising velocity. 
+            // Scaled so "Speed 10" feels like a gentle walk.
+            targetVel = (autoScrollSpeedRef.current * 0.8) * (currentPixelsPerZ / 200) * hoverSlowdownRef.current;
           }
+
+          // 2. Apply "Friction" / Momentum by Lerping towards Target
+          // 0.05 factor = ~95% momentum retention per frame (smooth)
+          velocityRef.current += (targetVel - velocityRef.current) * 0.05;
+
+          // Stop infinite micro-scrolling only if target is 0
+          if (Math.abs(targetVel) < 0.01 && Math.abs(velocityRef.current) < 0.01) {
+            velocityRef.current = 0;
+          }
+
+          // Apply Velocity
+          virtualScrollYRef.current += velocityRef.current;
+
+          // Clamp
+          if (virtualScrollYRef.current < 0) {
+            virtualScrollYRef.current = 0;
+            velocityRef.current = 0;
+          } else if (virtualScrollYRef.current > maxScrollRef.current) {
+            virtualScrollYRef.current = maxScrollRef.current;
+            velocityRef.current = 0;
+          }
+        }
+
+        // Sync Target (Always)
+        if (maxScrollRef.current > 0) {
+          targetScrollProgressRef.current = virtualScrollYRef.current / maxScrollRef.current;
         }
 
         const diff = targetScrollProgressRef.current - scrollProgressRef.current;
 
-        if (isTouch) {
-          // No smoothing for touch - use direct mapping or very instant lerp
-          // This prevents "floating" feel on mobile
-          scrollProgressRef.current = targetScrollProgressRef.current;
-        } else {
-          // Retain smoothing for desktop mouse wheel
-          const clampedDiff = Math.max(-CONFIG.MAX_SCROLL_SPEED * 0.1, Math.min(CONFIG.MAX_SCROLL_SPEED * 0.1, diff));
-          scrollProgressRef.current += clampedDiff * 0.05 + (diff * 0.01);
-        }
+        // Unified smoothing (Desktop & Mobile Momentum both benefit from slight visual lerp)
+        const clampedDiff = Math.max(-CONFIG.MAX_SCROLL_SPEED * 0.2, Math.min(CONFIG.MAX_SCROLL_SPEED * 0.2, diff));
+        scrollProgressRef.current += clampedDiff * 0.1 + (diff * 0.05);
 
         camera.position.z = zStart - (scrollProgressRef.current * totalZDist);
 
@@ -1004,7 +1103,6 @@ const App: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
       canvasRef.current?.removeEventListener('click', handleCanvasClick);
@@ -1025,27 +1123,14 @@ const App: React.FC = () => {
   };
 
   const scrollToPercent = (pct: number) => {
-    const maxScroll = document.body.scrollHeight - window.innerHeight;
-    const targetY = pct * maxScroll;
-    targetScrollProgressRef.current = pct;
+    // Virtual Scroll Jump
+    // Kill momentum
+    velocityRef.current = 0;
 
-    if (timelineScrollRafRef.current) cancelAnimationFrame(timelineScrollRafRef.current);
-    const maxStep = CONFIG.MAX_SCROLL_SPEED * window.innerHeight; // px per frame cap
-
-    const stepScroll = () => {
-      const current = window.scrollY;
-      const diff = targetY - current;
-      if (Math.abs(diff) < 1) {
-        window.scrollTo({ top: targetY, behavior: 'auto' });
-        timelineScrollRafRef.current = null;
-        return;
-      }
-      const delta = Math.sign(diff) * Math.min(Math.abs(diff), maxStep);
-      window.scrollTo({ top: current + delta, behavior: 'auto' });
-      timelineScrollRafRef.current = requestAnimationFrame(stepScroll);
-    };
-
-    timelineScrollRafRef.current = requestAnimationFrame(stepScroll);
+    targetScrollProgressRef.current = Math.max(0, Math.min(1, pct));
+    if (maxScrollRef.current > 0) {
+      virtualScrollYRef.current = targetScrollProgressRef.current * maxScrollRef.current;
+    }
   };
 
   const handleTimelineTouchMove = (e: React.TouchEvent) => {
@@ -1065,9 +1150,7 @@ const App: React.FC = () => {
     }
 
     // Direct scrubbing
-    const maxScroll = document.body.scrollHeight - window.innerHeight;
-    // Use window.scrollTo directly for responsiveness during drag
-    window.scrollTo({ top: pct * maxScroll, behavior: 'auto' });
+    scrollToPercent(pct);
   };
 
   const handleTimelineClick = (e: React.MouseEvent) => {
@@ -1123,9 +1206,9 @@ const App: React.FC = () => {
         />
       )}
 
-      <div className={`fixed top-6 left-16 z-10 pointer-events-none mix-blend-multiply transition-opacity duration-500 ${hasEntered ? 'opacity-100' : 'opacity-0'} `}>
-        <h1 className="text-4xl font-bold text-gray-800 drop-shadow-sm rotate-[-2deg]">
-          The secret life of <span className="text-blue-600">Warco Mu</span>
+      <div className={`fixed top-6 left-0 right-6 z-10 pointer-events-none mix-blend-multiply transition-opacity duration-500 flex justify-center ${hasEntered ? 'opacity-100' : 'opacity-0'} `}>
+        <h1 className="text-1xl md:text-3xl font-bold text-gray-800 drop-shadow-sm rotate-[-2deg] text-center px-4">
+          The secret life of <span className="text-gray-600">Warco Mu</span>
         </h1>
       </div>
 
@@ -1152,7 +1235,7 @@ const App: React.FC = () => {
                 {/* Video Audio Mute */}
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs text-gray-500">3D Video Sound</label>
+                    <label className="text-xs text-gray-500">Video Sound</label>
                     <button
                       onClick={() => setIsVideoMuted(!isVideoMuted)}
                       className="p-1 rounded hover:bg-gray-100"
@@ -1342,17 +1425,31 @@ const App: React.FC = () => {
           />
           <div className="relative z-10 max-w-5xl w-full max-h-[90vh] flex flex-col items-center">
             {/* @ts-ignore */}
-            <wired-card elevation={4} className="w-full bg-white p-2">
+            <wired-card elevation={4} className="bg-white p-2 max-w-5xl">
               <div className="p-4 flex flex-col items-center">
                 <div className="w-full flex justify-end mb-2">
                   {/* @ts-ignore */}
                   <wired-button onClick={closeOverlay} elevation={2}>Close [X]</wired-button>
                 </div>
-                <div className="w-full aspect-video bg-black flex items-center justify-center overflow-hidden border-2 border-black rounded-sm shadow-inner">
+                <div className="relative flex items-center justify-center bg-black border-2 border-black rounded-sm shadow-inner overflow-hidden"
+                  style={{
+                    // Adaptive sizing logic:
+                    maxHeight: '65vh',
+                    maxWidth: '90vw',
+                    // 2. For embeds (no intrinsic size), we must enforce aspect ratio via CSS
+                    aspectRatio: selectedMedia.type === 'embed'
+                      ? (MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 16 / 9)
+                      : undefined,
+                    // 3. For embeds, we need explicit width to fill the aspect-ratio box but not overflow
+                    width: selectedMedia.type === 'embed'
+                      ? `min(100%, calc(65vh * ${(MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 1.777)}))`
+                      : 'auto',
+                  }}
+                >
                   {selectedMedia.type === 'video' && (
                     <video
                       src={selectedMedia.src}
-                      className="w-full h-full object-contain"
+                      className="block max-w-full max-h-[65vh] w-auto h-auto object-contain"
                       controls
                       autoPlay
                     />
@@ -1362,7 +1459,7 @@ const App: React.FC = () => {
                       src={(() => {
                         const base = selectedMedia.embedUrl || selectedMedia.src;
                         const sep = base.includes('?') ? '&' : '?';
-                        return `${base}${sep} autoplay = 1 & muted=1 & playsinline=1 & loop=1 & controls=1`;
+                        return `${base}${sep} autoplay=1&muted=1&playsinline=1&loop=1&controls=1`;
                       })()}
                       className="w-full h-full"
                       allow="autoplay; fullscreen; picture-in-picture"
@@ -1374,7 +1471,7 @@ const App: React.FC = () => {
                     <img
                       src={selectedMedia.src}
                       alt={selectedMedia.title}
-                      className="w-full h-full object-contain"
+                      className="block max-w-full max-h-[65vh] w-auto h-auto object-contain"
                     />
                   )}
                 </div>
@@ -1389,8 +1486,8 @@ const App: React.FC = () => {
               </div>
               {/* @ts-ignore */}
             </wired-card>
-          </div>
-        </div>
+          </div >
+        </div >
       )}
     </>
   );
