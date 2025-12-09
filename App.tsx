@@ -6,7 +6,13 @@ import LandingScreen from './LandingScreen';
 import TennisRainTransition from './TennisRainTransition';
 import timelinePinIcon from './assets/icons/timelinePin.svg';
 
-// --- Types & Interfaces ---
+// --- Types ---
+
+declare global {
+  interface Window {
+    audioContext?: AudioContext;
+  }
+}
 
 interface LayoutItem extends MediaItem {
   x: number;
@@ -23,6 +29,7 @@ interface LayoutItem extends MediaItem {
 
 const CONFIG = {
   Z_SPACING: 8,
+  // X Offset
   X_OFFSET: 2.2,
   CAMERA_START_Z: 8,
   FOG_COLOR: 0xfcfbf9, // Match body bg
@@ -34,19 +41,22 @@ const CONFIG = {
 
   // Audio Config
   AUDIO_MAX_DISTANCE: 12,
-  AUDIO_QUICK_FADE_BEHIND: 1.2,
+  AUDIO_QUICK_FADE_BEHIND: 4, // Faster fade when passed
   BGM_FADE_ZONE: 25,
-  BGM_SILENCE_RADIUS: 6,
+  BGM_SILENCE_RADIUS: 5, // Distance from end to be fully silent
 
   // Scroll Physics
-  MAX_SCROLL_SPEED: 0.15,
+  MAX_SCROLL_SPEED: 20, // Increased limit
+  AUTO_SCROLL_BASE_SPEED: 0.5, // CLICK-TO-SCROLL SPEED
   HOVER_MIN_SPEED_FACTOR: 0.05,
   TIMELINE_FOCUS_OFFSET: 4,
 };
 
 // --- Data Generation ---
 
-const generateLayout = (): LayoutItem[] => {
+const generateLayout = (isMobile: boolean): LayoutItem[] => {
+  const xOffset = isMobile ? 1.9 : CONFIG.X_OFFSET; // Tighter offset on mobile
+
   return MEDIA_DATA.map((item, i) => {
     // Default dimensions
     let width = 3.2;
@@ -98,7 +108,7 @@ const generateLayout = (): LayoutItem[] => {
     return {
       ...item,
       z: -i * CONFIG.Z_SPACING,
-      x: (Math.random() - 0.5) * 2 + (i % 2 === 0 ? -CONFIG.X_OFFSET : CONFIG.X_OFFSET), // Alternating zig-zag
+      x: (Math.random() - 0.5) * 2 + (i % 2 === 0 ? -xOffset : xOffset), // Alternating zig-zag
       y: (Math.random() - 0.5) * 0.5,
       rotationY: (i % 2 === 0 ? 0.12 : -0.12) + (Math.random() - 0.5) * 0.05,
       rotationZ: (Math.random() - 0.5) * 0.1, // Slight tilt
@@ -245,6 +255,100 @@ const createSketchyBackground = () => {
   return geometry;
 };
 
+// --- Helper: Create Friends Geometry (Separate for Fade-In) ---
+const createFriendsGeometry = () => {
+  const points: THREE.Vector3[] = [];
+
+  const addStroke = (x1: number, y1: number, x2: number, y2: number, jitterAmt: number = 0.2) => {
+    const segments = 6;
+    let px = x1;
+    let py = y1;
+    const dx = (x2 - x1) / segments;
+    const dy = (y2 - y1) / segments;
+    for (let i = 0; i < segments; i++) {
+      const nx = x1 + dx * (i + 1);
+      const ny = y1 + dy * (i + 1);
+      points.push(new THREE.Vector3(px, py, 0));
+      const jx = i === segments - 1 ? 0 : (Math.random() - 0.5) * jitterAmt;
+      const jy = i === segments - 1 ? 0 : (Math.random() - 0.5) * jitterAmt;
+      points.push(new THREE.Vector3(nx + jx, ny + jy, 0));
+      px = nx + jx;
+      py = ny + jy;
+    }
+  };
+
+  const addPerson = (cx: number, cy: number, height: number, armStyle: 'up' | 'down' | 'wave' = 'down') => {
+    // Head
+    const headRadius = height * 0.15;
+    const headSegments = 8;
+    let lastHX = cx + headRadius;
+    let lastHY = cy + height - headRadius;
+    for (let i = 1; i <= headSegments; i++) {
+      const theta = (i / headSegments) * Math.PI * 2;
+      const hx = cx + Math.cos(theta) * headRadius;
+      const hy = cy + height - headRadius + Math.sin(theta) * headRadius;
+      addStroke(lastHX, lastHY, hx, hy, 0.1);
+      lastHX = hx;
+      lastHY = hy;
+    }
+
+    // Body
+    const neckY = cy + height - (headRadius * 2);
+    const hipY = cy + height * 0.4;
+    addStroke(cx, neckY, cx, hipY, 0.1);
+
+    // Legs
+    addStroke(cx, hipY, cx - height * 0.2, cy, 0.1);
+    addStroke(cx, hipY, cx + height * 0.2, cy, 0.1);
+
+    // Arms
+    const shoulderY = neckY - (height * 0.1);
+    const armLen = height * 0.25;
+
+    if (armStyle === 'up') {
+      // High Five
+      addStroke(cx, shoulderY, cx - armLen, shoulderY + armLen, 0.1);
+      addStroke(cx, shoulderY, cx + armLen, shoulderY + armLen, 0.1);
+    } else if (armStyle === 'wave') {
+      addStroke(cx, shoulderY, cx - armLen, shoulderY - armLen, 0.1); // one down
+      addStroke(cx, shoulderY, cx + armLen, shoulderY + armLen, 0.1); // one up
+    } else {
+      // Down/Holding hands
+      addStroke(cx, shoulderY, cx - armLen, shoulderY - height * 0.1, 0.1);
+      addStroke(cx, shoulderY, cx + armLen, shoulderY - height * 0.1, 0.1);
+    }
+  };
+
+  const addHeart = (cx: number, cy: number, scale: number) => {
+    addStroke(cx, cy - scale, cx - scale, cy + scale * 0.5, 0.1);
+    addStroke(cx - scale, cy + scale * 0.5, cx, cy + scale * 0.2, 0.1);
+    addStroke(cx, cy - scale, cx + scale, cy + scale * 0.5, 0.1);
+    addStroke(cx + scale, cy + scale * 0.5, cx, cy + scale * 0.2, 0.1);
+  };
+
+  // 1. Center Pair (Holding Hands?)
+  addPerson(-2, 0, 4, 'up');
+  addPerson(2, 0, 4, 'up');
+  addHeart(0, 3, 1);
+
+  // 2. Left Group
+  addPerson(-8, 0, 3.5, 'wave');
+  addHeart(-6, 3, 0.5);
+
+  // 3. Right Group
+  addPerson(7, 0, 3.8, 'wave');
+  addPerson(10, 0, 3.2, 'down');
+  addHeart(8.5, 3.5, 0.6);
+
+  // Floating Hearts
+  addHeart(-5, 5, 0.5);
+  addHeart(5, 6, 0.4);
+  addHeart(0, 7, 0.8);
+
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  return geometry;
+};
+
 // --- Helper: Create Text Texture for Date ---
 const createDateTexture = (text: string) => {
   const canvas = document.createElement('canvas');
@@ -299,7 +403,33 @@ const App: React.FC = () => {
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // State
-  const [layout] = useState(generateLayout);
+  // Initial generation based on current window width
+  const [layout, setLayout] = useState(() => generateLayout(window.innerWidth < 768));
+
+  // Update layout on resize to handle rotation (Mobile <-> Desktop)
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      // We only want to regenerate if the mode actually changed to avoid unnecessary jitters
+      // But since generateLayout uses Math.random(), full regeneration changes everything.
+      // For now, let's just accept the jitter on rotation as the price for responsiveness.
+      setLayout(generateLayout(isMobile));
+    };
+    // Debounce or just raw? Raw is fine for simple component.
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect Mobile for UI (Re-use resize logic or generic check)
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile(); // Check on mount
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
@@ -333,7 +463,7 @@ const App: React.FC = () => {
   const frameLinesRef = useRef<{ [id: string]: THREE.LineSegments }>({});
   const videoElementsRef = useRef<{ [id: string]: HTMLVideoElement }>({});
   // Added loadedOpacity and targetLoadedOpacity for smooth resize transitions
-  const mediaNodesRef = useRef<{ item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number }[]>([]);
+  const mediaNodesRef = useRef<{ item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; gainNode?: GainNode }[]>([]);
   const isOverlayOpenRef = useRef(false);
   const hasEnteredRef = useRef(false);
   const scrollProgressRef = useRef(0);
@@ -466,8 +596,20 @@ const App: React.FC = () => {
   };
 
   // --- Virtual Scroll Setup ---
+  // Responsive Start Z
+  const [startZ, setStartZ] = useState(() => window.innerWidth < 768 ? 14 : CONFIG.CAMERA_START_Z);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const newZ = window.innerWidth < 768 ? 14 : CONFIG.CAMERA_START_Z;
+      setStartZ(prev => prev !== newZ ? newZ : prev);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Derived state for scroll calculations
-  const zStartRaw = CONFIG.CAMERA_START_Z;
+  const zStartRaw = startZ;
   const lastItemZRaw = layout[layout.length - 1].z;
   const totalZDist = zStartRaw - (lastItemZRaw + 5); // Start - End
   const pixelsPerZ = 250 / scrollSensitivity;
@@ -546,6 +688,27 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // --- Web Audio Context Init ---
+  // Must be resumed on first user interaction
+  useEffect(() => {
+    const initAudio = () => {
+      if (!window.audioContext) {
+        window.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (window.audioContext.state === 'suspended') {
+        window.audioContext.resume();
+      }
+    };
+    window.addEventListener('touchstart', initAudio, { once: true });
+    window.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('keydown', initAudio, { once: true });
+    return () => {
+      window.removeEventListener('touchstart', initAudio);
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('keydown', initAudio);
+    };
+  }, []);
+
   // --- Three.js Setup & Loop ---
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -558,7 +721,7 @@ const App: React.FC = () => {
 
     // Extend the far plane so the distant background stays in view from the start.
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 0, CONFIG.CAMERA_START_Z);
+    camera.position.set(0, 0, startZ);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({
@@ -581,7 +744,7 @@ const App: React.FC = () => {
     const initialGeometry = new THREE.PlaneGeometry(3.2, 2.4);
 
     // CHANGED: Card background to WHITE per user request
-    const cardMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const cardMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
     const dateWidth = 2;
     const dateHeight = 0.5;
     const dateGeometry = new THREE.PlaneGeometry(dateWidth, dateHeight);
@@ -603,13 +766,27 @@ const App: React.FC = () => {
     }));
     const lastItemZPos = layout[layout.length - 1].z;
 
+    // Separate FRIENDS Geometry
+    const friendsGeometry = createFriendsGeometry();
+    const friendsLines = new THREE.LineSegments(friendsGeometry, new THREE.LineBasicMaterial({
+      color: 0x555555, // Slightly darker
+      opacity: 0, // Start invisible
+      transparent: true,
+      fog: false
+    }));
+
     // DYNAMIC BACKGROUND SCALING Logic
     const bgDistance = Math.abs(lastItemZPos - CONFIG.CAMERA_START_Z) + 20;
     bgLines.position.set(0, 0, lastItemZPos - 10);
     const depthScale = Math.max(1.5, bgDistance / 50);
     bgLines.scale.set(depthScale, depthScale, 1);
 
+    // Friends Position (Same Z as bg but no scaling needed? Or same scaling?)
+    friendsLines.position.set(0, 0, lastItemZPos - 9); // Slightly in front of landscape
+    friendsLines.scale.set(depthScale, depthScale, 1);
+
     scene.add(bgLines);
+    scene.add(friendsLines);
 
     // 3. Create Meshes
     meshesRef.current = [];
@@ -701,7 +878,7 @@ const App: React.FC = () => {
     // Lazy load helpers
     const loadedMap: Record<string, boolean> = {};
 
-    const loadMedia = (node: { item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number }) => {
+    const loadMedia = (node: { item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; gainNode?: GainNode }) => {
       const item = node.item;
       if (loadedMap[item.id]) return;
       if (item.type === 'video') {
@@ -719,7 +896,22 @@ const App: React.FC = () => {
         video.onloadedmetadata = () => {
           node.updateGeometry(video.videoWidth, video.videoHeight);
           node.targetLoadedOpacity = 1; // Start fade in
+          video.play().catch(() => { }); // Auto-play immediately (muted) for texture update
         };
+
+        // --- Web Audio Init ---
+        let gainNode: GainNode | null = null;
+        if (window.audioContext) {
+          try {
+            // Re-use source if already created (unlikely here as we create fresh video, but good practice)
+            const source = window.audioContext.createMediaElementSource(video);
+            gainNode = window.audioContext.createGain();
+            source.connect(gainNode);
+            gainNode.connect(window.audioContext.destination);
+            gainNode.gain.value = 0;
+          } catch (e) { console.error(e); }
+        }
+        if (gainNode) node.gainNode = gainNode;
 
         const texture = new THREE.VideoTexture(video);
         texture.minFilter = THREE.LinearFilter;
@@ -938,26 +1130,20 @@ const App: React.FC = () => {
 
         const diff = targetScrollProgressRef.current - scrollProgressRef.current;
 
-        // Unified smoothing (Desktop & Mobile Momentum both benefit from slight visual lerp)
         const clampedDiff = Math.max(-CONFIG.MAX_SCROLL_SPEED * 0.2, Math.min(CONFIG.MAX_SCROLL_SPEED * 0.2, diff));
         scrollProgressRef.current += clampedDiff * 0.1 + (diff * 0.05);
 
-        camera.position.z = zStart - (scrollProgressRef.current * totalZDist);
+        camera.position.z = startZ - (scrollProgressRef.current * totalZDist);
 
         if (timelineRef.current) {
           timelineRef.current.style.width = `${scrollProgressRef.current * 100}% `;
         }
 
-        // BGM Fading Logic (Last Item)
-        const distToLast = Math.abs(camera.position.z - lastItemZPos);
-        if (audioRef.current && isBgmEnabled) {
-          let targetVol = 1.0;
-          if (distToLast < CONFIG.BGM_FADE_ZONE) {
-            targetVol = Math.max(0, (distToLast - CONFIG.BGM_SILENCE_RADIUS) / (CONFIG.BGM_FADE_ZONE - CONFIG.BGM_SILENCE_RADIUS));
-          }
-          // Smooth lerp
-          bgmVolumeRef.current += (targetVol - bgmVolumeRef.current) * 0.05;
-          audioRef.current.volume = Math.max(0, Math.min(1, bgmVolumeRef.current));
+        // ANIMATE FRIENDS OPACITY
+        // Visible > 50% scroll. Full opacity at 100%.
+        if (friendsLines) {
+          const friendOpacity = Math.max(0, Math.min(1, (scrollProgressRef.current - 0.5) * 2));
+          (friendsLines.material as THREE.LineBasicMaterial).opacity = friendOpacity;
         }
       }
 
@@ -980,6 +1166,35 @@ const App: React.FC = () => {
       const buffer = 8; // items
       const startIndex = Math.max(0, centerIndex - buffer);
       const endIndex = Math.min(mediaNodesRef.current.length - 1, centerIndex + buffer);
+      // --- Audio Manager Phase 1: Aggregation ---
+      // Z-BAND STRATEGY: 
+      // Map Camera Z to a unique "Item Index". That item owns the audio zone.
+      // This guarantees zero overlap because adjacent zones share a boundary at the midpoint.
+
+      // Calculate Scroll Position relative to the feed start
+      const relativeScrollZ = startZ - camera.position.z;
+      // Clamp zone index to prevent overshooting the last item when scrolling past end
+      const zoneIndex = Math.min(MEDIA_DATA.length - 1, Math.max(0, Math.round(relativeScrollZ / CONFIG.Z_SPACING)));
+
+      const activeItem = MEDIA_DATA[zoneIndex];
+      let activeAudioId: string | null = null;
+      let activeZoneCenterZ = 0;
+
+      // If the owner of this zone is a video, it gets the mic.
+      if (activeItem && activeItem.type === 'video') {
+        activeAudioId = activeItem.id;
+        // Calculate the "Optimal Viewing Position" for this item
+        // To view item at ItemZ, camera should be at (ItemZ + startZ)
+        // ItemZ = -zoneIndex * 8
+        // Manual Offset: +4 units (Push peak slightly later/further to match visual center better)
+        const MANUAL_AUDIO_OFFSET = 0;
+        activeZoneCenterZ = -(zoneIndex * CONFIG.Z_SPACING) + startZ + MANUAL_AUDIO_OFFSET;
+      }
+
+      // Strict Non-Overlapping Range = Half Spacing
+      const AUDIO_DIST = CONFIG.Z_SPACING / 2; // 4.0 units
+
+      let globalMaxVideoVol = 0;
 
       for (let i = startIndex; i <= endIndex; i++) {
         const node = mediaNodesRef.current[i];
@@ -991,8 +1206,11 @@ const App: React.FC = () => {
         // Load/Unload Logic
         const nearLoad = 22;
         const farUnload = 32;
+        // NEVER unload the last item (Finale)
+        const isLastItem = (i === mediaNodesRef.current.length - 1);
+
         if (dist < nearLoad) loadMedia(node);
-        else if (dist > farUnload) unloadMedia(node);
+        else if (dist > farUnload && !isLastItem) unloadMedia(node);
 
         // Frame Hover Effect
         const itemId = node.item.id;
@@ -1041,7 +1259,6 @@ const App: React.FC = () => {
         const bgMesh = group.children.find(c => (c as THREE.Mesh).isMesh && c !== mesh && !c.userData.isDate) as THREE.Mesh;
         if (bgMesh && bgMesh.material) {
           (bgMesh.material as THREE.MeshBasicMaterial).opacity = globalAlpha;
-          (bgMesh.material as THREE.MeshBasicMaterial).transparent = true; // Ensure transparent is set so opacity works
         }
 
         // Frame
@@ -1068,29 +1285,101 @@ const App: React.FC = () => {
         if (videoElementsRef.current[itemId]) {
           const video = videoElementsRef.current[itemId];
           if (!isOverlayOpenRef.current && hasEnteredRef.current) {
-            if (isVideoMutedRef.current) {
-              video.volume = 0;
-            } else if (dist < CONFIG.AUDIO_MAX_DISTANCE) {
-              // Unmute if close enough/valid
+
+            // Logic:
+            // Mobile (Small Screen): VISUALS ONLY. Strict Mute.
+            // Desktop: Gradient Audio (Zone Based)
+
+            const isSmallScreen = window.innerWidth < 768;
+
+            // EXCLUSIVE AUDIO: Only the winner gets to play
+            const isWinner = (itemId === activeAudioId);
+            const isLastItem = (i === mediaNodesRef.current.length - 1);
+
+            // Force audio for last item even on small screens
+            if (isVideoMutedRef.current || (isSmallScreen && !isLastItem)) {
+              if (!video.muted) video.muted = true; // Ensure muted
+              // Also mute gain node if exists
+              if (node.gainNode && node.gainNode.gain.value > 0) {
+                node.gainNode.gain.cancelScheduledValues(0);
+                node.gainNode.gain.value = 0;
+              }
+            } else if (isWinner) {
+              // ACTIVE ZONE (WINNER TAKES ALL)
+              // Universal Gradient Logic
               video.muted = false;
 
-              const isBehind = camera.position.z < (group.position.z - 2);
-              let volume = 0;
-              if (isBehind) {
-                const behindDist = Math.abs(camera.position.z - group.position.z);
-                volume = Math.max(0, 1 - (behindDist / CONFIG.AUDIO_QUICK_FADE_BEHIND));
-              } else {
-                volume = Math.max(0, 1 - (dist / CONFIG.AUDIO_MAX_DISTANCE));
+              // Calculate Volume
+              // Fade from 0 to 4 units distance
+              // Peak at activeZoneCenterZ (Volume 1.0)
+              // Zero at 4 distance (Volume 0.0)
+
+              let distToCenter = Math.abs(camera.position.z - activeZoneCenterZ);
+
+              // STICKY FINALE: If this is the last item and we have scrolled PAST the center (camera.z < center),
+              // keep the volume at max (dist = 0).
+              if (isLastItem && camera.position.z < activeZoneCenterZ) {
+                distToCenter = 0;
               }
-              video.volume = volume;
+
+              let vol = Math.max(0, 1 - (distToCenter / AUDIO_DIST));
+
+              // Apply volume using Web Audio API if available (Safari Fix)
+              if (node.gainNode) {
+                // Use ramping for ultra-smoothness
+                node.gainNode.gain.setTargetAtTime(vol, window.audioContext.currentTime, 0.1);
+              } else {
+                // Fallback for simple setups
+                video.volume = vol;
+              }
+
+              globalMaxVideoVol = Math.max(globalMaxVideoVol, vol);
+
               if (video.paused) video.play().catch(() => { });
+
             } else {
-              if (video.volume > 0) video.volume = 0;
-              if (!video.paused) video.pause();
+              // INACTIVE ZONE (But still visible/loaded)
+              // Ensure Muted, but keep playing for visuals!
+              if (!video.muted) video.muted = true;
+              // REMOVED video.pause() here. 
+              // If it's loaded, it should play visually. 
+              // UnloadMedia handles stopping it when it goes off-screen.
+              if (video.paused) video.play().catch(() => { });
             }
           }
         }
+      } // End of Loop
+
+      // --- Audio Manager Phase 2: BGM Orchestration ---
+      if (audioRef.current && isBgmEnabled) {
+        // 1. Determine Target Volume based on priority
+        let targetBgmVol = 1.0;
+
+        const distToLast = Math.abs(camera.position.z - (layout[layout.length - 1].z));
+
+        if (globalMaxVideoVol > 0.1) {
+          targetBgmVol = 0.1; // Priority 1: Duck for video
+        } else if (distToLast < CONFIG.BGM_FADE_ZONE) {
+          // Priority 2: Fade out at end of gallery
+          targetBgmVol = Math.max(0, (distToLast - CONFIG.BGM_SILENCE_RADIUS) / (CONFIG.BGM_FADE_ZONE - CONFIG.BGM_SILENCE_RADIUS));
+        }
+
+        // 2. Resume if needed (Handle Mobile OS Pause)
+        // Only resume if we actually want to hear it (target > 0)
+        if (isBgmPlaying && audioRef.current.paused && targetBgmVol > 0.01) {
+          audioRef.current.play().catch(() => { });
+        }
+
+        // 3. Apply Smooth Volume Transition (Lerp)
+        const currentVol = audioRef.current.volume;
+        // Move ~5% towards target per frame for smooth fades
+        if (Math.abs(currentVol - targetBgmVol) > 0.005) {
+          audioRef.current.volume += (targetBgmVol - currentVol) * 0.05;
+        } else {
+          audioRef.current.volume = targetBgmVol; // Snap to exact value when close
+        }
       }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -1114,7 +1403,7 @@ const App: React.FC = () => {
         v.pause(); v.src = ""; v.load();
       });
     };
-  }, [layout]);
+  }, [layout, startZ, totalZDist]);
 
 
   const closeOverlay = () => {
@@ -1244,6 +1533,13 @@ const App: React.FC = () => {
                       {isVideoMuted ? <IconSpeakerOff /> : <IconSpeakerOn />}
                     </button>
                   </div>
+
+                  {/* Mobile Disclaimer */}
+                  {isMobile && (
+                    <div className="text-[10px] text-amber-700 bg-amber-50 p-2 rounded mb-2 border border-amber-200 leading-tight">
+                      Video sound is disabled on mobile devices. <br />(Except for the finale!)
+                    </div>
+                  )}
                 </div>
 
                 {/* BGM Controls */}

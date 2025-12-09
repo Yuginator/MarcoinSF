@@ -56,9 +56,9 @@ const titleOverrides: Record<string, string> = {
 };
 const timelineLabelOverrides: Record<string, string> = {
   '2023-03-01.jpeg': '399开张',
-  '2024-10-20-3.jpeg': 'Bye Caroline',
+  '2024-10-20-1.jpeg': 'Bye Caroline',
   '2024-11-17-1.jpeg': '吴情吴义',
-  '2025-10-31.jpeg': '多邻国之神',
+  '2025-10-31.jpeg': 'Halloween',
   '2025-12-04.jpeg': 'Last Day',
 };
 
@@ -114,14 +114,14 @@ mediaEntries.push({
 });
 
 mediaEntries.push({
-  filename: 'Ignore_2024-08-23-5.png',
-  src: 'https://vimeo.com/1144210034',
-  previewSrc: vimeoPreview20240823,
+  filename: '2024-10-20.mp4',
+  type: 'video',
+  sortKey: '2024-10-20',
+  dateOverride: '2024-10-20',
+  src: 'https://vimeo.com/1144210034', // Assuming this is the source for the video
+  previewSrc: vimeoPreview20240823, // Assuming a preview image is available
   embedUrl: 'https://player.vimeo.com/video/1144210034',
-  type: 'embed',
-  sortKey: '2024-08-23',
-  dateOverride: '2024-08-23',
-  titleOverride: '2024-08-23',
+  titleOverride: '2024-10-20',
   description: 'Who makes the most authentic old Beijing Zhajiang Noodles?',
   timelineLabel: '炸酱面大赛',
 });
