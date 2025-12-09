@@ -199,6 +199,11 @@ export const MEDIA_DIMENSIONS: Record<string, { width: number; height: number; a
     "height": 960,
     "aspectRatio": 1.3333333333333333
   },
+  "2024-10-20.mp4": {
+    "width": 607,
+    "height": 1080,
+    "aspectRatio": 0.562037037037037
+  },
   "2024-10-22.JPG": {
     "width": 4032,
     "height": 3024,

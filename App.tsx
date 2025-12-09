@@ -1357,7 +1357,13 @@ const App: React.FC = () => {
 
         const distToLast = Math.abs(camera.position.z - (layout[layout.length - 1].z));
 
-        if (globalMaxVideoVol > 0.1) {
+        // FINALE LOGIC: If the last media is the ACTIVE audio source, kill BGM completely.
+        const lastItemId = mediaNodesRef.current[mediaNodesRef.current.length - 1]?.item.id;
+        const isFinalePlaying = (activeAudioId === lastItemId);
+
+        if (isFinalePlaying) {
+          targetBgmVol = 0.0; // Priority 0: Total silence for the finale
+        } else if (globalMaxVideoVol > 0.1) {
           targetBgmVol = 0.1; // Priority 1: Duck for video
         } else if (distToLast < CONFIG.BGM_FADE_ZONE) {
           // Priority 2: Fade out at end of gallery
@@ -1497,7 +1503,7 @@ const App: React.FC = () => {
 
       <div className={`fixed top-6 left-0 right-6 z-10 pointer-events-none mix-blend-multiply transition-opacity duration-500 flex justify-center ${hasEntered ? 'opacity-100' : 'opacity-0'} `}>
         <h1 className="text-1xl md:text-3xl font-bold text-gray-800 drop-shadow-sm rotate-[-2deg] text-center px-4">
-          The secret life of <span className="text-gray-600">Warco Mu</span>
+          The secret life of <span className="text-gray-600">Warco Mu 🐵</span>
         </h1>
       </div>
 
@@ -1719,10 +1725,10 @@ const App: React.FC = () => {
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={closeOverlay}
           />
-          <div className="relative z-10 max-w-5xl w-full max-h-[90vh] flex flex-col items-center">
+          <div className="relative z-10 w-auto max-w-[95vw] flex flex-col items-center pointer-events-auto">
             {/* @ts-ignore */}
-            <wired-card elevation={4} className="bg-white p-2 max-w-5xl">
-              <div className="p-4 flex flex-col items-center">
+            <wired-card elevation={4} className="bg-white p-2 w-full">
+              <div className="p-4 flex flex-col items-center overflow-y-auto max-h-[85vh] no-scrollbar">
                 <div className="w-full flex justify-end mb-2">
                   {/* @ts-ignore */}
                   <wired-button onClick={closeOverlay} elevation={2}>Close [X]</wired-button>
@@ -1730,7 +1736,8 @@ const App: React.FC = () => {
                 <div className="relative flex items-center justify-center bg-black border-2 border-black rounded-sm shadow-inner overflow-hidden"
                   style={{
                     // Adaptive sizing logic:
-                    maxHeight: '65vh',
+                    // Increase max height for better desktop viewing
+                    maxHeight: '80vh',
                     maxWidth: '90vw',
                     // 2. For embeds (no intrinsic size), we must enforce aspect ratio via CSS
                     aspectRatio: selectedMedia.type === 'embed'
@@ -1738,14 +1745,15 @@ const App: React.FC = () => {
                       : undefined,
                     // 3. For embeds, we need explicit width to fill the aspect-ratio box but not overflow
                     width: selectedMedia.type === 'embed'
-                      ? `min(100%, calc(65vh * ${(MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 1.777)}))`
+                      ? `min(100%, calc(80vh * ${(MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 1.777)}))`
                       : 'auto',
+                    minWidth: selectedMedia.type === 'embed' ? '60vw' : 'auto',
                   }}
                 >
                   {selectedMedia.type === 'video' && (
                     <video
                       src={selectedMedia.src}
-                      className="block max-w-full max-h-[65vh] w-auto h-auto object-contain"
+                      className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
                       controls
                       autoPlay
                     />
@@ -1767,23 +1775,23 @@ const App: React.FC = () => {
                     <img
                       src={selectedMedia.src}
                       alt={selectedMedia.title}
-                      className="block max-w-full max-h-[65vh] w-auto h-auto object-contain"
+                      className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
                     />
                   )}
                 </div>
                 <div className="mt-6 text-center">
-                  <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                  <h2 className="text-xl md:text-3xl font-bold text-gray-800 mb-2">
                     {selectedMedia.title}
                   </h2>
                   {selectedMedia.description && (
-                    <p className="text-gray-600 text-lg font-light">{selectedMedia.description}</p>
+                    <p className="text-gray-600 text-sm md:text-lg font-light">{selectedMedia.description}</p>
                   )}
                 </div>
               </div>
               {/* @ts-ignore */}
             </wired-card>
-          </div >
-        </div >
+          </div>
+        </div>
       )}
     </>
   );

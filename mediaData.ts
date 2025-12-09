@@ -115,11 +115,11 @@ mediaEntries.push({
 
 mediaEntries.push({
   filename: '2024-10-20.mp4',
-  type: 'video',
+  type: 'embed',
   sortKey: '2024-10-20',
   dateOverride: '2024-10-20',
-  src: 'https://vimeo.com/1144210034', // Assuming this is the source for the video
-  previewSrc: vimeoPreview20240823, // Assuming a preview image is available
+  src: 'https://player.vimeo.com/video/1144210034', // Use embed URL as src for safety
+  previewSrc: vimeoPreview20240823,
   embedUrl: 'https://player.vimeo.com/video/1144210034',
   titleOverride: '2024-10-20',
   description: 'Who makes the most authentic old Beijing Zhajiang Noodles?',
