@@ -18,7 +18,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: peaceiris/actions-gh-pages@v4
+      # Deploy to Root (Main Branch)
+      - name: Deploy Main
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: dist
+          # Clean deploy for main
+
+      # Deploy to /MarcoinSF/3D Subfolder (3d Branch)
+      - name: Deploy 3D
+        if: github.ref == 'refs/heads/3d'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          destination_dir: 3D
+          keep_files: true # Don't wipe the main site!
