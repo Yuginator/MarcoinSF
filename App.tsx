@@ -5,6 +5,7 @@ import { MEDIA_DIMENSIONS } from './mediaDimensions';
 import LandingScreen from './LandingScreen';
 import TennisRainTransition from './TennisRainTransition';
 import timelinePinIcon from './assets/icons/timelinePin.svg';
+import { createCastleScene, CASTLE_CONFIG } from './src/scene/Castle';
 
 // --- Types ---
 
@@ -31,25 +32,35 @@ const CONFIG = {
   Z_SPACING: 8,
   // X Offset
   X_OFFSET: 2.2,
-  CAMERA_START_Z: 8,
+  CAMERA_START_Z: CASTLE_CONFIG.startZ, // Use Castle config for start position
   FOG_COLOR: 0xfcfbf9, // Match body bg
 
   // Opacity / Visibility
-  FADE_START: 12,
-  FADE_END: 24, // REDUCED from 32 to 24 to reduce clutter
+  FADE_START: 15,
+  FADE_END: 50,
   HIGHLIGHT_RANGE: 4,
 
   // Audio Config
   AUDIO_MAX_DISTANCE: 12,
   AUDIO_QUICK_FADE_BEHIND: 4, // Faster fade when passed
-  BGM_FADE_ZONE: 25,
+  BGM_FADE_ZONE: 20,
   BGM_SILENCE_RADIUS: 5, // Distance from end to be fully silent
 
   // Scroll Physics
-  MAX_SCROLL_SPEED: 20, // Increased limit
+  MAX_SCROLL_SPEED: 20,
+  SCROLL_SPEED_MULTIPLIER: 2.5,
   AUTO_SCROLL_BASE_SPEED: 0.5, // CLICK-TO-SCROLL SPEED
   HOVER_MIN_SPEED_FACTOR: 0.05,
   TIMELINE_FOCUS_OFFSET: 4,
+
+  // Sky Cycle configuration
+  SKY_STOPS: [
+    { pos: 0.0, color: new THREE.Color(0xf1f5dc) }, // Day (light yellow)
+    { pos: 0.2, color: new THREE.Color(0xc2dbf2) }, // Day (Blue)
+    { pos: 0.5, color: new THREE.Color(0xe3b69f) }, // Sunset (Peach)
+    { pos: 0.75, color: new THREE.Color(0x3d51ad) }, // Blue Hour
+    { pos: 0.95, color: new THREE.Color(0x050510) } // Midnight
+  ]
 };
 
 // --- Data Generation ---
@@ -481,6 +492,13 @@ const App: React.FC = () => {
   const isDraggingRef = useRef(false);
   const lastTouchYRef = useRef(0);
   const lastDragTimeRef = useRef(0);
+  const lastScrollTimeRef = useRef(0);
+
+  // Castle Scene Updates
+  const castleUpdateRef = useRef<((time: number) => void) | null>(null);
+
+  // Auto-scroll State
+  const isAutoScrollingRef = useRef(false);
 
   // Sync refs
   useEffect(() => {
@@ -715,11 +733,43 @@ const App: React.FC = () => {
 
     // 1. Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(CONFIG.FOG_COLOR);
-    // Tighter fog to hide the "pop in" at the back
-    scene.fog = new THREE.Fog(CONFIG.FOG_COLOR, 10, 30); // Reduced from 60 to 30
+    // --- Scene Setup ---
+    scene.background = new THREE.Color(0xf1f5dc); // Monument Valley Sky Blue
+    scene.fog = new THREE.Fog(0xf1f5dc, 20, 80); // Fog: Start fading at 20, fully obscured at 80
 
-    // Extend the far plane so the distant background stays in view from the start.
+    // Add Castle / Planets!
+    // Calculate depth based on layout
+    const galleryDepthZ = layout[layout.length - 1]?.z || -100;
+    const { update: castleUpdate } = createCastleScene(scene, galleryDepthZ);
+    castleUpdateRef.current = castleUpdate;
+
+    // --- Lighting (Pastel Style) ---
+    // 1. Hemisphere Light (Sky vs Ground ambients)
+    // REDUCED INTENSITY: Was 0.6. Lowered to 0.35 to allow toon shadows to appear.
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.35);
+    scene.add(hemiLight);
+
+    // 2. Directional Light (Sun)
+    const dirLight = new THREE.DirectionalLight(0xffecd2, 1.5);
+    // Adjusted position for better cross-lighting on spheres
+    dirLight.position.set(80, 60, 50);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    // Ensure shadow box covers the castle
+    dirLight.shadow.camera.left = -50;
+    dirLight.shadow.camera.right = 50;
+    dirLight.shadow.camera.top = 50;
+    dirLight.shadow.camera.bottom = -50;
+    scene.add(dirLight);
+
+    // Ambient fill
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(ambientLight);
+
+    // REMOVED: Old random "friends" drawing logic
+    // (The castle has its own details now)
+
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
     camera.position.set(0, 0, startZ);
     cameraRef.current = camera;
@@ -756,37 +806,10 @@ const App: React.FC = () => {
       transparent: true
     });
 
-    // Background
-    const bgGeometry = createSketchyBackground();
-    const bgLines = new THREE.LineSegments(bgGeometry, new THREE.LineBasicMaterial({
-      color: 0x888888,
-      opacity: 0.6,
-      transparent: true,
-      fog: false
-    }));
-    const lastItemZPos = layout[layout.length - 1].z;
 
-    // Separate FRIENDS Geometry
-    const friendsGeometry = createFriendsGeometry();
-    const friendsLines = new THREE.LineSegments(friendsGeometry, new THREE.LineBasicMaterial({
-      color: 0x555555, // Slightly darker
-      opacity: 0, // Start invisible
-      transparent: true,
-      fog: false
-    }));
-
-    // DYNAMIC BACKGROUND SCALING Logic
-    const bgDistance = Math.abs(lastItemZPos - CONFIG.CAMERA_START_Z) + 20;
-    bgLines.position.set(0, 0, lastItemZPos - 10);
-    const depthScale = Math.max(1.5, bgDistance / 50);
-    bgLines.scale.set(depthScale, depthScale, 1);
-
-    // Friends Position (Same Z as bg but no scaling needed? Or same scaling?)
-    friendsLines.position.set(0, 0, lastItemZPos - 9); // Slightly in front of landscape
-    friendsLines.scale.set(depthScale, depthScale, 1);
-
-    scene.add(bgLines);
-    scene.add(friendsLines);
+    // DYNAMIC BACKGROUND SCALING Logic REMOVED
+    // Castle scene is static relative to world, camera moves through it.
+    // Legacy bgLines/friendsLines logic removed.
 
     // 3. Create Meshes
     meshesRef.current = [];
@@ -1139,11 +1162,31 @@ const App: React.FC = () => {
           timelineRef.current.style.width = `${scrollProgressRef.current * 100}% `;
         }
 
-        // ANIMATE FRIENDS OPACITY
-        // Visible > 50% scroll. Full opacity at 100%.
-        if (friendsLines) {
-          const friendOpacity = Math.max(0, Math.min(1, (scrollProgressRef.current - 0.5) * 2));
-          (friendsLines.material as THREE.LineBasicMaterial).opacity = friendOpacity;
+        // ANIMATE FRIENDS OPACITY - REMOVED (Legacy)
+        // The castle scene is static.
+
+        // --- DYNAMIC SKY CYCLE ---
+        const prog = Math.min(1, Math.max(0, scrollProgressRef.current));
+        const stops = CONFIG.SKY_STOPS;
+
+        // Find which two stops we are between
+        for (let i = 0; i < stops.length - 1; i++) {
+          const start = stops[i];
+          const end = stops[i + 1];
+          if (prog >= start.pos && prog <= end.pos) {
+            const range = end.pos - start.pos;
+            const mix = (prog - start.pos) / range;
+
+            // Lerp color directly into scene background
+            if (scene.background instanceof THREE.Color) {
+              scene.background.copy(start.color).lerp(end.color, mix);
+            }
+            // Sync Fog Color
+            if (scene.fog instanceof THREE.Fog) {
+              scene.fog.color.copy(scene.background as THREE.Color);
+            }
+            break;
+          }
         }
       }
 
@@ -1234,15 +1277,17 @@ const App: React.FC = () => {
         const NEAR_FADE_END = 0.5; // Fully invisible when closer than this
 
         if (dist < NEAR_FADE_END) {
-          distAlpha = 0;
+          distAlpha = 0; // Still hide close items completely
         } else if (dist < NEAR_FADE_START) {
           distAlpha = (dist - NEAR_FADE_END) / (NEAR_FADE_START - NEAR_FADE_END);
         } else if (dist <= CONFIG.FADE_START) {
           distAlpha = 1;
         } else if (dist >= CONFIG.FADE_END) {
-          distAlpha = 0;
+          distAlpha = 0.3; // Floor at 30% opacity instead of 0
         } else {
-          distAlpha = 1 - (dist - CONFIG.FADE_START) / (CONFIG.FADE_END - CONFIG.FADE_START);
+          // Lerp from 1.0 down to 0.3
+          const t = (dist - CONFIG.FADE_START) / (CONFIG.FADE_END - CONFIG.FADE_START);
+          distAlpha = 1.0 - (0.7 * t);
         }
 
         // 2. Load Fade-In
