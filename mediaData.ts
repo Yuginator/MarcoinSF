@@ -26,10 +26,10 @@ export interface MusicTrack {
 }
 
 export const MUSIC_TRACKS: MusicTrack[] = [
-  { title: 'Handbeaten Fishball', src: handbeatenFishball },
+  { title: '卤味', src: louMei },
+  { title: '手打鱼丸', src: handbeatenFishball },
   { title: 'Begging Buddha', src: beggingBuddha },
   { title: 'Fuji Mt', src: fujiMt },
-  { title: 'Lou Mei', src: louMei },
 ];
 
 const mediaModules = import.meta.glob<{ default: string }>('./assets/media/*', {
