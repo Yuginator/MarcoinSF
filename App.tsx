@@ -33,11 +33,10 @@ const CONFIG = {
   // X Offset
   X_OFFSET: 2.2,
   CAMERA_START_Z: CASTLE_CONFIG.startZ, // Use Castle config for start position
-  FOG_COLOR: 0xfcfbf9, // Match body bg
 
   // Opacity / Visibility
-  FADE_START: 15,
-  FADE_END: 50,
+  FADE_START: 100,
+  FADE_END: 1000,
   HIGHLIGHT_RANGE: 4,
 
   // Audio Config
@@ -55,13 +54,17 @@ const CONFIG = {
 
   // Sky Cycle configuration
   SKY_STOPS: [
-    { pos: 0.0, color: new THREE.Color(0xf1f5dc) }, // Day (light yellow)
-    { pos: 0.2, color: new THREE.Color(0xc2dbf2) }, // Day (Blue)
-    { pos: 0.5, color: new THREE.Color(0xe3b69f) }, // Sunset (Peach)
-    { pos: 0.75, color: new THREE.Color(0x3d51ad) }, // Blue Hour
+    // { pos: 0.0, color: new THREE.Color(0xf1f5dc) }, // Day (light yellow)
+    // { pos: 0.2, color: new THREE.Color(0xc2dbf2) }, // Day (Blue)
+    // { pos: 0.5, color: new THREE.Color(0xe3b69f) }, // Sunset (Peach)
+    // { pos: 0.0, color: new THREE.Color(0x3d51ad) }, // Blue Hour
+    { pos: 0.0, color: new THREE.Color(0x1b1e2b) },
     { pos: 0.95, color: new THREE.Color(0x050510) } // Midnight
   ]
 };
+// #322a4bff
+// #1b1e2bff
+// #050510
 
 // --- Data Generation ---
 
@@ -130,234 +133,147 @@ const generateLayout = (isMobile: boolean): LayoutItem[] => {
   });
 };
 
-// --- Helper: Create Sketchy Box Geometry ---
-const createSketchyBoxGeometry = (width: number, height: number, intensity: number = 1) => {
-  const points: THREE.Vector3[] = [];
-  const w = width / 2;
-  const h = height / 2;
+// --- Helper: Retro Mac Window Textures ---
+const createPinstripeTexture = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 8; // Slightly taller for more distinct lines
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
 
-  const loops = intensity === 0 ? 1 : (intensity === 1 ? 2 : 3);
-  const baseJitter = intensity === 0 ? 0.01 : (intensity === 1 ? 0.02 : 0.04);
-  const overshoot = intensity === 2 ? 0.1 : 0.02;
+  // Fill Light Grey background
+  ctx.fillStyle = '#dbd9d9ff';
+  ctx.fillRect(0, 0, 32, 12);
 
-  const addLine = (x1: number, y1: number, x2: number, y2: number) => {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const dirX = dx / len;
-    const dirY = dy / len;
-
-    const startX = x1 - dirX * (Math.random() * overshoot);
-    const startY = y1 - dirY * (Math.random() * overshoot);
-    const endX = x2 + dirX * (Math.random() * overshoot);
-    const endY = y2 + dirY * (Math.random() * overshoot);
-
-    points.push(new THREE.Vector3(startX, startY, 0));
-
-    const midX = (startX + endX) / 2 + (Math.random() - 0.5) * baseJitter;
-    const midY = (startY + endY) / 2 + (Math.random() - 0.5) * baseJitter;
-    points.push(new THREE.Vector3(midX, midY, 0));
-
-    points.push(new THREE.Vector3(endX, endY, 0));
-  };
-
-  for (let i = 0; i < loops; i++) {
-    const jitter = baseJitter * (i + 1);
-    addLine(-w - Math.random() * jitter, h + Math.random() * jitter, w + Math.random() * jitter, h - Math.random() * jitter);
-    addLine(w + Math.random() * jitter, h - Math.random() * jitter, w - Math.random() * jitter, -h + Math.random() * jitter);
-    addLine(w - Math.random() * jitter, -h + Math.random() * jitter, -w + Math.random() * jitter, -h - Math.random() * jitter);
-    addLine(-w + Math.random() * jitter, -h - Math.random() * jitter, -w - Math.random() * jitter, h + Math.random() * jitter);
-  }
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  return geometry;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  return texture;
 };
 
-// --- Helper: Create Hand-Drawn Background (SF Style) ---
-const createSketchyBackground = () => {
-  const points: THREE.Vector3[] = [];
-  const width = 120; // Wide landscape
+// --- Helper: Glow Shader for Window ---
+const createGlowMaterial = () => {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(0xFFFFFF) }, // Bright White
+      uSize: { value: new THREE.Vector2(1, 1) },   // Dimensions of the Window Box
+      uGlowSize: { value: 0.8 }                    // Current Glow spread
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uTime;
+      uniform vec2 uSize;      // Window Width, Height (in world units)
+      uniform float uGlowSize; // Margin added for glow mesh
+      
+      varying vec2 vUv;
+      
+      // Signed Distance Field for Box
+      float sdBox( in vec2 p, in vec2 b ) {
+        vec2 d = abs(p) - b;
+        return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+      }
 
-  const addStroke = (x1: number, y1: number, x2: number, y2: number, jitterAmt: number = 0.2) => {
-    const segments = 6;
-    let px = x1;
-    let py = y1;
-    const dx = (x2 - x1) / segments;
-    const dy = (y2 - y1) / segments;
-
-    for (let i = 0; i < segments; i++) {
-      const nx = x1 + dx * (i + 1);
-      const ny = y1 + dy * (i + 1);
-      points.push(new THREE.Vector3(px, py, 0));
-      const jx = i === segments - 1 ? 0 : (Math.random() - 0.5) * jitterAmt;
-      const jy = i === segments - 1 ? 0 : (Math.random() - 0.5) * jitterAmt;
-      points.push(new THREE.Vector3(nx + jx, ny + jy, 0));
-      px = nx + jx;
-      py = ny + jy;
-    }
-  };
-
-  // 1. Horizon / Rolling Hills
-  let prevY = 0;
-  for (let x = -width / 2; x <= width / 2; x += 2) {
-    const y = Math.sin(x * 0.05) * 5 + Math.sin(x * 0.15) * 2 - 5;
-    if (x > -width / 2) {
-      addStroke(x - 2, prevY, x, y, 0.4);
-      addStroke(x - 2, prevY - 0.2, x, y - 0.2, 0.6);
-    }
-    prevY = y;
-  }
-
-  // 2. Transamerica Pyramid-ish Shape
-  const towerX = 15;
-  const towerBaseY = Math.sin(towerX * 0.05) * 5 + Math.sin(towerX * 0.15) * 2 - 5;
-  addStroke(towerX - 4, towerBaseY, towerX, towerBaseY + 18, 0.3);
-  addStroke(towerX + 4, towerBaseY, towerX, towerBaseY + 18, 0.3);
-  addStroke(towerX - 3.8, towerBaseY + 2, towerX + 3.8, towerBaseY + 2, 0.2);
-  addStroke(towerX - 2.5, towerBaseY + 12, towerX + 2.5, towerBaseY + 12, 0.2);
-
-  // 3. Golden Gate Bridge Suggestions
-  const bridgeX = -25;
-  const bridgeY = Math.sin(bridgeX * 0.05) * 5 - 5;
-  addStroke(bridgeX, bridgeY, bridgeX, bridgeY + 12, 0.3);
-  addStroke(bridgeX + 1, bridgeY, bridgeX + 1, bridgeY + 12, 0.3);
-  addStroke(bridgeX - 0.5, bridgeY + 10, bridgeX + 1.5, bridgeY + 10, 0.1);
-  addStroke(bridgeX - 15, bridgeY - 2, bridgeX - 15, bridgeY + 10, 0.3);
-  let bpx = bridgeX - 15;
-  let bpy = bridgeY + 10;
-  for (let bx = bridgeX - 15; bx <= bridgeX; bx += 2) {
-    const by = bridgeY + 10 - Math.sin(((bx - (bridgeX - 15)) / 15) * Math.PI) * 4;
-    addStroke(bpx, bpy, bx, by, 0.1);
-    bpx = bx;
-    bpy = by;
-  }
-
-  // 4. Clouds / Sun
-  const addCloud = (cx: number, cy: number, scale: number) => {
-    const segments = 12;
-    let lastX = cx + Math.cos(0) * scale;
-    let lastY = cy + Math.sin(0) * scale * 0.6;
-    for (let i = 1; i <= segments + 1; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const r = scale + (Math.random() - 0.5) * (scale * 0.4);
-      const x = cx + Math.cos(theta) * r;
-      const y = cy + Math.sin(theta) * (r * 0.6);
-      addStroke(lastX, lastY, x, y, 0.5);
-      lastX = x;
-      lastY = y;
-    }
-  };
-  addCloud(-30, 15, 6);
-  addCloud(-10, 20, 4);
-  addCloud(25, 18, 7);
-  const sunX = 35;
-  const sunY = 22;
-  addCloud(sunX, sunY, 3);
-  for (let i = 0; i < 8; i++) {
-    const theta = (i / 8) * Math.PI * 2;
-    const x1 = sunX + Math.cos(theta) * 4;
-    const y1 = sunY + Math.sin(theta) * 4;
-    const x2 = sunX + Math.cos(theta) * 6;
-    const y2 = sunY + Math.sin(theta) * 6;
-    addStroke(x1, y1, x2, y2, 0.2);
-  }
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  return geometry;
+      void main() {
+        // vUv is 0..1. Map to world coordinates centered at 0.
+        // Mesh Size = uSize + 2 * uGlowSize
+        vec2 meshSize = uSize + vec2(uGlowSize * 2.0);
+        
+        vec2 p = vUv * meshSize - (meshSize * 0.5);
+        
+        // Define box half-size
+        vec2 boxHalf = uSize * 0.5;
+        
+        // Calculate Distance
+        float dist = sdBox(p, boxHalf);
+        
+        // dist <= 0 is INSIDE the window (opaque or ignore? Glow is BEHIND, so inside doesn't matter much if z-ordered)
+        // dist > 0 is OUTSIDE.
+        
+        // Soft Falloff
+        // Gaussianish: exp(-k * d*d)
+        float glow = 0.0;
+        if (dist > 0.0) {
+            // Reduced spread: Multiplier from 0.4 to 0.2 makes sigma smaller -> faster falloff
+            float sigma = uGlowSize * 0.25; 
+            glow = exp(-(dist * dist) / (2.0 * sigma * sigma));
+        } else {
+            // Inside the box
+            glow = 1.0; 
+        }
+        
+        // Animation: Pulse intensity
+        float pulse = 0.8 + 0.2 * sin(uTime * 2.5); // Faster pulse
+        
+        float alpha = glow * pulse;
+        
+        // Hard cut at texture edge to avoid repeat artifacts if any (though plain plane shouldn't behave weird)
+        // Fade out at very edge
+        // distance from center to edge of mesh?
+        // Let's just trust Gaussian to be near 0 at edge.
+        
+        gl_FragColor = vec4(uColor, alpha);
+        
+        // Optional: extra sparkle?
+      }
+    `,
+    transparent: true,
+    depthWrite: false, // Don't write depth, just blend
+    blending: THREE.AdditiveBlending // Add to background (stars)
+  });
 };
 
-// --- Helper: Create Friends Geometry (Separate for Fade-In) ---
-const createFriendsGeometry = () => {
-  const points: THREE.Vector3[] = [];
+const createWindowButtonTexture = (type: 'close' | 'zoom' | 'collapse') => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
 
-  const addStroke = (x1: number, y1: number, x2: number, y2: number, jitterAmt: number = 0.2) => {
-    const segments = 6;
-    let px = x1;
-    let py = y1;
-    const dx = (x2 - x1) / segments;
-    const dy = (y2 - y1) / segments;
-    for (let i = 0; i < segments; i++) {
-      const nx = x1 + dx * (i + 1);
-      const ny = y1 + dy * (i + 1);
-      points.push(new THREE.Vector3(px, py, 0));
-      const jx = i === segments - 1 ? 0 : (Math.random() - 0.5) * jitterAmt;
-      const jy = i === segments - 1 ? 0 : (Math.random() - 0.5) * jitterAmt;
-      points.push(new THREE.Vector3(nx + jx, ny + jy, 0));
-      px = nx + jx;
-      py = ny + jy;
-    }
-  };
+  // 1. Box Background (White)
+  ctx.fillStyle = '#8e8e8eff';
+  ctx.fillRect(0, 0, 32, 32);
 
-  const addPerson = (cx: number, cy: number, height: number, armStyle: 'up' | 'down' | 'wave' = 'down') => {
-    // Head
-    const headRadius = height * 0.15;
-    const headSegments = 8;
-    let lastHX = cx + headRadius;
-    let lastHY = cy + height - headRadius;
-    for (let i = 1; i <= headSegments; i++) {
-      const theta = (i / headSegments) * Math.PI * 2;
-      const hx = cx + Math.cos(theta) * headRadius;
-      const hy = cy + height - headRadius + Math.sin(theta) * headRadius;
-      addStroke(lastHX, lastHY, hx, hy, 0.1);
-      lastHX = hx;
-      lastHY = hy;
-    }
+  // 2. Black/Grey Border
+  // Use #333333 for darker grey instead of pure black
+  ctx.strokeStyle = '#333333';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(0, 0, 32, 32);
 
-    // Body
-    const neckY = cy + height - (headRadius * 2);
-    const hipY = cy + height * 0.4;
-    addStroke(cx, neckY, cx, hipY, 0.1);
+  // 3. Icon
+  ctx.beginPath();
+  if (type === 'close') {
+    // Draw X
+    const p = 8;
+    ctx.moveTo(p, p);
+    ctx.lineTo(32 - p, 32 - p);
+    ctx.moveTo(32 - p, p);
+    ctx.lineTo(p, 32 - p);
+  } else if (type === 'zoom') {
+    // Draw Box
+    const p = 8;
+    ctx.strokeRect(p, p, 32 - 2 * p, 32 - 2 * p);
+  } else if (type === 'collapse') {
+    // Draw Line
+    const p = 8;
+    ctx.moveTo(p, 16);
+    ctx.lineTo(32 - p, 16);
+  }
+  ctx.stroke();
 
-    // Legs
-    addStroke(cx, hipY, cx - height * 0.2, cy, 0.1);
-    addStroke(cx, hipY, cx + height * 0.2, cy, 0.1);
-
-    // Arms
-    const shoulderY = neckY - (height * 0.1);
-    const armLen = height * 0.25;
-
-    if (armStyle === 'up') {
-      // High Five
-      addStroke(cx, shoulderY, cx - armLen, shoulderY + armLen, 0.1);
-      addStroke(cx, shoulderY, cx + armLen, shoulderY + armLen, 0.1);
-    } else if (armStyle === 'wave') {
-      addStroke(cx, shoulderY, cx - armLen, shoulderY - armLen, 0.1); // one down
-      addStroke(cx, shoulderY, cx + armLen, shoulderY + armLen, 0.1); // one up
-    } else {
-      // Down/Holding hands
-      addStroke(cx, shoulderY, cx - armLen, shoulderY - height * 0.1, 0.1);
-      addStroke(cx, shoulderY, cx + armLen, shoulderY - height * 0.1, 0.1);
-    }
-  };
-
-  const addHeart = (cx: number, cy: number, scale: number) => {
-    addStroke(cx, cy - scale, cx - scale, cy + scale * 0.5, 0.1);
-    addStroke(cx - scale, cy + scale * 0.5, cx, cy + scale * 0.2, 0.1);
-    addStroke(cx, cy - scale, cx + scale, cy + scale * 0.5, 0.1);
-    addStroke(cx + scale, cy + scale * 0.5, cx, cy + scale * 0.2, 0.1);
-  };
-
-  // 1. Center Pair (Holding Hands?)
-  addPerson(-2, 0, 4, 'up');
-  addPerson(2, 0, 4, 'up');
-  addHeart(0, 3, 1);
-
-  // 2. Left Group
-  addPerson(-8, 0, 3.5, 'wave');
-  addHeart(-6, 3, 0.5);
-
-  // 3. Right Group
-  addPerson(7, 0, 3.8, 'wave');
-  addPerson(10, 0, 3.2, 'down');
-  addHeart(8.5, 3.5, 0.6);
-
-  // Floating Hearts
-  addHeart(-5, 5, 0.5);
-  addHeart(5, 6, 0.4);
-  addHeart(0, 7, 0.8);
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  return geometry;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  return texture;
 };
 
 // --- Helper: Create Text Texture for Date ---
@@ -368,9 +284,9 @@ const createDateTexture = (text: string) => {
   canvas.width = 512;
   canvas.height = 128;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  // Use Gloria Hallelujah for hand-drawn feel
-  ctx.font = '40px "Gloria Hallelujah", cursive';
-  ctx.fillStyle = '#666666';
+  // Use ChicagoFLF for header date
+  ctx.font = '60px "ChicagoFLF"';
+  ctx.fillStyle = '#000000';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -408,6 +324,92 @@ const IconClose = () => (
 
 
 // --- Components ---
+
+// --- Retro Photo Material Factory ---
+const createRetroPhotoMaterial = () => {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: null },
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(512, 512) }, // Default, updated on load
+      uGlitchStrength: { value: 0.005 },
+      opacity: { value: 1.0 }
+    },
+    vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+    fragmentShader: `
+            uniform sampler2D uMap;
+            uniform float uTime;
+            uniform vec2 uResolution;
+            uniform float uGlitchStrength;
+            uniform float opacity;
+            varying vec2 vUv;
+
+            // Random function
+            float random(vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            }
+
+            void main() {
+                vec2 uv = vUv;
+
+                // 1. Pixelation (Low-res)
+                // Effective resolution control (lower = more blocked)
+                float pixelSize = 256.0; 
+                vec2 pixelatedUv = floor(uv * pixelSize) / pixelSize;
+
+                // 2. Glitch / Scanline Displacement
+                // Random horizontal jiggle on scanlines
+                float scanlineJiggle = (random(vec2(0.0, floor(uv.y * 50.0) + floor(uTime * 20.0))) - 0.5) * uGlitchStrength;
+                // Occasional large glitch block
+                float blockGlitch = 0.0;
+                if (random(vec2(floor(uTime * 5.0), floor(uv.y * 10.0))) > 0.95) {
+                    blockGlitch = (random(vec2(uTime, uv.y)) - 0.5) * 0.05;
+                }
+                
+                vec2 finalUv = pixelatedUv + vec2(scanlineJiggle + blockGlitch, 0.0);
+                
+                vec4 color = texture2D(uMap, finalUv);
+
+                // 3. CRT Color & Scanlines
+                // Basic contrast boost - REDUCED for washed out look
+                // Was: (color.rgb - 0.5) * 1.3 + 0.5;
+                color.rgb = (color.rgb - 0.5) * 0.9 + 0.5;
+
+                // Desaturation (Washed out)
+                float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                // Mix 60% color, 40% gray
+                color.rgb = mix(vec3(gray), color.rgb, 0.6);
+
+                // Lift blacks slightly using screen with dark grey
+                color.rgb = clamp(color.rgb, 0.0, 1.0);
+                color.rgb = mix(color.rgb, vec3(0.1, 0.1, 0.12), 0.1);
+
+                // Color shift (Aberration)
+                float r = texture2D(uMap, finalUv + vec2(0.002, 0.0)).r;
+                float b = texture2D(uMap, finalUv - vec2(0.002, 0.0)).b;
+                color.r = mix(color.r, r, 0.5);
+                color.b = mix(color.b, b, 0.5);
+                
+                // Scanlines (Darkening lines)
+                float scanline = sin(uv.y * 800.0 + uTime * 5.0) * 0.05; // Reduced intensity
+                color.rgb -= scanline;
+
+                // Green tint for "Matrix/CRT" vibe
+                color.rgb += vec3(0.0, 0.02, 0.05);
+
+                gl_FragColor = color;
+                gl_FragColor.a *= opacity;
+            }
+        `,
+    transparent: true // Needed if original media has transparency, usually photos don't but safe to have.
+  });
+};
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -471,10 +473,12 @@ const App: React.FC = () => {
 
   // Refs for Animation Loop Access
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const frameLinesRef = useRef<{ [id: string]: THREE.LineSegments }>({});
+  const glowMaterialsRef = useRef<THREE.ShaderMaterial[]>([]);
+
   const videoElementsRef = useRef<{ [id: string]: HTMLVideoElement }>({});
   // Added loadedOpacity and targetLoadedOpacity for smooth resize transitions
   const mediaNodesRef = useRef<{ item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; gainNode?: GainNode }[]>([]);
+  const retroMaterialsRef = useRef<THREE.ShaderMaterial[]>([]);
   const isOverlayOpenRef = useRef(false);
   const hasEnteredRef = useRef(false);
   const scrollProgressRef = useRef(0);
@@ -793,18 +797,13 @@ const App: React.FC = () => {
     // Initial Geometry 
     const initialGeometry = new THREE.PlaneGeometry(3.2, 2.4);
 
-    // CHANGED: Card background to WHITE per user request
-    const cardMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+    // CHANGED: Card background to WHITE per user request (Updated to Dark Grey)
+    const cardMaterial = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true });
     const dateWidth = 2;
     const dateHeight = 0.5;
     const dateGeometry = new THREE.PlaneGeometry(dateWidth, dateHeight);
 
-    const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0x222222,
-      linewidth: 2,
-      opacity: 0.8,
-      transparent: true
-    });
+
 
 
     // DYNAMIC BACKGROUND SCALING Logic REMOVED
@@ -813,8 +812,31 @@ const App: React.FC = () => {
 
     // 3. Create Meshes
     meshesRef.current = [];
-    frameLinesRef.current = {};
+
     mediaNodesRef.current = [];
+
+    // --- Shared Resources for Lazy Loading ---
+    const TITLE_BAR_HEIGHT = 0.2;
+    const BORDER_THICKNESS = 0.02;
+    const BEVEL_THICKNESS = 0.04;
+    const WINDOW_PAD = 0.2;
+
+
+    // Shared Materials
+    const sharedWindowBodyMat = new THREE.MeshBasicMaterial({ color: 0xd1d1d1 }); // Light Grey Body #d1d1d1
+    const sharedBorderMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    const sharedBevelMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
+
+    // Shared Textures
+    const sharedPinstripeTex = createPinstripeTexture();
+    const sharedCloseTex = createWindowButtonTexture('close');
+    const sharedZoomTex = createWindowButtonTexture('zoom');
+    const sharedCollapseTex = createWindowButtonTexture('collapse');
+
+    // Shared Button Materials (Reusable)
+    const sharedCloseMat = new THREE.MeshBasicMaterial({ map: sharedCloseTex, transparent: true });
+    const sharedZoomMat = new THREE.MeshBasicMaterial({ map: sharedZoomTex, transparent: true });
+    const sharedCollapseMat = new THREE.MeshBasicMaterial({ map: sharedCollapseTex, transparent: true });
 
     layout.forEach((item) => {
       const group = new THREE.Group();
@@ -826,26 +848,33 @@ const App: React.FC = () => {
       const iW = item.initialWidth;
       const iH = item.initialHeight;
 
-      // 1. Content Mesh
+      // 1. Content Mesh (Placeholder / Raycast Target)
       const contentGeo = new THREE.PlaneGeometry(iW, iH);
+      // Use standard material for placeholder, but wait for loadMedia to swap to Retro Material
+      // ACTUALLY: Let's refactor loadMedia to create the retro material. 
+      // For the placeholder, transparent basic is fine.
       const contentMesh = new THREE.Mesh(contentGeo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
       contentMesh.position.z = 0.1;
-      contentMesh.position.y = 0.15;
+      contentMesh.position.y = 0.0;
 
-      // 2. Background Card (slightly larger)
-      const cardW = iW + 0.3;
-      const cardH = iH + 0.8;
-      const bgGeo = new THREE.PlaneGeometry(cardW, cardH);
-      const bgMesh = new THREE.Mesh(bgGeo, cardMaterial.clone());
-      bgMesh.position.z = 0;
+      // Lazy-loaded meshes references
+      let bodyMesh: THREE.Mesh | undefined;
+      let titleMesh: THREE.Mesh | undefined;
+      let closeBoxMesh: THREE.Mesh | undefined;
+      let zoomBoxMesh: THREE.Mesh | undefined;
+      let collapseBoxMesh: THREE.Mesh | undefined;
+      let borderMesh: THREE.Mesh | undefined;
+      let bevelMesh: THREE.Mesh | undefined;
+      let contentBorderMesh: THREE.Mesh | undefined;
+      let separatorMesh: THREE.Mesh | undefined;
+      let glowMesh: THREE.Mesh | undefined;
+      let dateHeaderMesh: THREE.Mesh | undefined;
 
-      // 3. Frame (matches background size)
-      const initialFrameGeo = createSketchyBoxGeometry(cardW + 0.05, cardH + 0.05, item.borderIntensity);
-      const frameLines = new THREE.LineSegments(initialFrameGeo, lineMaterial.clone());
-      frameLines.position.z = 0.15;
-      frameLinesRef.current[item.id] = frameLines;
+      // Need per-instance glow/title materials due to uniforms/repeat
+      let glowMat: THREE.ShaderMaterial | undefined;
+      let pinstripeTex: THREE.Texture | undefined;
 
-      // Logic to resize meshes based on aspect ratio
+      // Logic to resize meshes based on aspect ratio AND Lazily Create them
       const updateGeometry = (width: number, height: number) => {
         const aspectRatio = width / height;
         let newW = MAX_WIDTH;
@@ -856,43 +885,193 @@ const App: React.FC = () => {
           newW = MAX_HEIGHT * aspectRatio;
         }
 
+        // Recalculate dimensions
+        const bW = newW + (WINDOW_PAD * 2);
+        const bH = newH + (WINDOW_PAD * 2);
+
+        // --- LAZY CREATION START ---
+        if (!bodyMesh) {
+          // A. Main Body
+          bodyMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sharedWindowBodyMat);
+          bodyMesh.position.z = 0.05;
+          group.add(bodyMesh);
+
+          // B. Title Bar (Unique Texture Repeat)
+          // Clone texture to allow unique UV scaling via repeat? 
+          // Or share material and clone texture?
+          // To keep it simple, clone the texture and make a new mat.
+          if (sharedPinstripeTex) {
+            pinstripeTex = sharedPinstripeTex.clone();
+            pinstripeTex.needsUpdate = true; // Essential for cloned texture to init
+          }
+          const titleBarMat = new THREE.MeshBasicMaterial({ map: pinstripeTex, color: 0xffffff });
+          titleMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), titleBarMat);
+          titleMesh.position.z = 0.05;
+          group.add(titleMesh);
+
+          // C. Buttons
+          // Helper to position buttons relative to title bar
+          const boxSize = TITLE_BAR_HEIGHT * 0.7; // Box size
+          const boxY = 0; // Set in updates
+          const boxZ = 0.06;
+
+          closeBoxMesh = new THREE.Mesh(new THREE.PlaneGeometry(boxSize, boxSize), sharedCloseMat); // reusing geometry ok? No, position unique
+          group.add(closeBoxMesh);
+
+          zoomBoxMesh = new THREE.Mesh(new THREE.PlaneGeometry(boxSize, boxSize), sharedZoomMat);
+          group.add(zoomBoxMesh);
+
+          collapseBoxMesh = new THREE.Mesh(new THREE.PlaneGeometry(boxSize, boxSize), sharedCollapseMat);
+          group.add(collapseBoxMesh);
+
+          // D. Borders
+          bevelMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sharedBevelMat);
+          bevelMesh.position.z = 0.02;
+          group.add(bevelMesh);
+
+          borderMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sharedBorderMat);
+          borderMesh.position.z = 0;
+          group.add(borderMesh);
+
+          contentBorderMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sharedBorderMat);
+          contentBorderMesh.position.z = 0.04;
+          group.add(contentBorderMesh);
+
+          separatorMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.02), sharedBorderMat);
+          separatorMesh.position.z = 0.06;
+          group.add(separatorMesh);
+
+          // E. Glow
+          const glowMargin = 0.4;
+          glowMat = createGlowMaterial();
+          glowMaterialsRef.current.push(glowMat);
+          glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), glowMat);
+          glowMesh.position.z = -0.05;
+          glowMesh.position.x = 0;
+          group.add(glowMesh);
+
+          // F. Date Header (Centered on Title Bar)
+          const dateTex = createDateTexture(item.date);
+          if (dateTex) {
+            // Aspect Ratio of canvas is 512 / 128 = 4
+            // Fit within Title Bar Height
+            const dH = TITLE_BAR_HEIGHT;
+            const dW = dH * 4; // 0.56
+            const dateMat = new THREE.MeshBasicMaterial({ map: dateTex, transparent: true });
+            dateHeaderMesh = new THREE.Mesh(new THREE.PlaneGeometry(dW, dH), dateMat);
+            dateHeaderMesh.position.z = 0.07; // Above separator/title
+            group.add(dateHeaderMesh);
+          }
+
+          group.add(contentMesh); // Ensure content mesh is at end or handled? 
+          // Actually contentMesh was added below in original code. 
+          // But now we add these new meshes. 
+          // Let's ensure Z-order is correct by position.z
+        }
+        // --- LAZY CREATION END ---
+
         contentMesh.geometry.dispose();
         contentMesh.geometry = new THREE.PlaneGeometry(newW, newH);
 
-        const cardW = newW + 0.3;
-        const cardH = newH + 0.8;
-        bgMesh.geometry.dispose();
-        bgMesh.geometry = new THREE.PlaneGeometry(cardW, cardH);
-
-        const frameGeo = createSketchyBoxGeometry(cardW + 0.05, cardH + 0.05, item.borderIntensity);
-        frameLines.geometry.dispose();
-        frameLines.geometry = frameGeo;
-
-        // Move Date Label if exists
-        const dateY = -(cardH / 2) + 0.4;
-        const dateMesh = group.children.find(c => c.userData.isDate);
-        if (dateMesh) {
-          dateMesh.position.y = dateY;
+        // Update Body
+        if (bodyMesh) {
+          bodyMesh.geometry.dispose();
+          bodyMesh.geometry = new THREE.PlaneGeometry(bW, bH);
+          bodyMesh.position.y = 0;
         }
+
+        // Update Content Border
+        if (contentBorderMesh) {
+          contentBorderMesh.geometry.dispose();
+          contentBorderMesh.geometry = new THREE.PlaneGeometry(bW + 0.02, bH + 0.02);
+          contentBorderMesh.position.y = 0;
+        }
+
+        // Update Separator
+        if (separatorMesh) {
+          separatorMesh.geometry.dispose();
+          separatorMesh.geometry = new THREE.PlaneGeometry(bW, 0.02);
+          separatorMesh.position.y = (bH / 2);
+        }
+
+        // Update Title Bar
+        if (titleMesh) {
+          titleMesh.geometry.dispose();
+          titleMesh.geometry = new THREE.PlaneGeometry(bW, TITLE_BAR_HEIGHT);
+          titleMesh.position.y = (bH / 2) + (TITLE_BAR_HEIGHT / 2);
+
+          // Texture Repeat Update
+          if (pinstripeTex) {
+            pinstripeTex.repeat.set(bW / 2, 1);
+          }
+
+          // Update Date Header Position
+          if (dateHeaderMesh) {
+            dateHeaderMesh.position.y = titleMesh.position.y;
+            dateHeaderMesh.position.x = 0; // Centered
+          }
+        }
+
+        // Update Buttons
+        const boxSize = TITLE_BAR_HEIGHT * 0.7; // boxSize matching creation
+        const boxZ = 0.06;
+        if (titleMesh && closeBoxMesh && zoomBoxMesh && collapseBoxMesh) {
+          const bY = titleMesh.position.y;
+          closeBoxMesh.position.set(-(bW / 2) + (boxSize / 2) + 0.1, bY, boxZ);
+          zoomBoxMesh.position.set((bW / 2) - (boxSize / 2) - 0.1, bY, boxZ);
+          collapseBoxMesh.position.set((bW / 2) - (boxSize * 1.5) - 0.2, bY, boxZ);
+        }
+
+        // Update Bevel Frame
+        const bevW = bW + (BEVEL_THICKNESS * 2);
+        const bevH = bH + TITLE_BAR_HEIGHT + (BEVEL_THICKNESS * 2);
+        if (bevelMesh) {
+          bevelMesh.geometry.dispose();
+          bevelMesh.geometry = new THREE.PlaneGeometry(bevW, bevH);
+          bevelMesh.position.y = (TITLE_BAR_HEIGHT / 2);
+        }
+
+        // Update Outer Border
+        const outW = bevW + (BORDER_THICKNESS * 2);
+        const outH = bevH + (BORDER_THICKNESS * 2);
+        if (borderMesh) {
+          borderMesh.geometry.dispose();
+          borderMesh.geometry = new THREE.PlaneGeometry(outW, outH);
+          borderMesh.position.y = (TITLE_BAR_HEIGHT / 2);
+        }
+
+        // Update Glow (Illumination)
+        const glowMargin = 0.4;
+        if (glowMesh && glowMat && borderMesh) { // check borderMesh for pos
+          const glW = outW + (glowMargin * 2);
+          const glH = outH + (glowMargin * 2);
+          glowMesh.geometry.dispose();
+          glowMesh.geometry = new THREE.PlaneGeometry(glW, glH);
+          glowMesh.position.y = borderMesh.position.y;
+          // Update uniforms for shader SDF
+          glowMat.uniforms.uSize.value.set(outW, outH);
+        }
+
+        // Move Date Label - REMOVED (Legacy)
       };
 
       // Defer loading; populate registry with item-specific geometry updater
       // Init opacity to 0 to hide initial layout shift
       mediaNodesRef.current.push({ item, contentMesh, updateGeometry, loadedOpacity: 0, targetLoadedOpacity: 0 });
       // Re-add Date Caption
-      const dateTexture = createDateTexture(item.date);
-      if (dateTexture) {
-        const dateMaterial = new THREE.MeshBasicMaterial({ map: dateTexture, transparent: true, opacity: 0.8 });
-        const dateMesh = new THREE.Mesh(dateGeometry, dateMaterial);
-        dateMesh.userData = { isDate: true };
-        dateMesh.position.y = -(cardH / 2) + 0.4; // Position relative to dynamic height
-        dateMesh.position.z = 0.11;
-        group.add(dateMesh);
-      }
+      // const dateTexture = createDateTexture(item.date); // REMOVED: Old date caption
+      // if (dateTexture) {
+      //   const dateMaterial = new THREE.MeshBasicMaterial({ map: dateTexture, transparent: true, opacity: 0.8 });
+      //   const dateMesh = new THREE.Mesh(dateGeometry, dateMaterial);
+      //   dateMesh.userData = { isDate: true };
+      //   // Initial pos will be fixed by updateGeometry
+      //   dateMesh.position.y = -2;
+      //   dateMesh.position.z = 0.11;
+      //   group.add(dateMesh);
+      // }
 
-      group.add(bgMesh);
       group.add(contentMesh);
-      group.add(frameLines);
+
       group.userData = { id: item.id };
       scene.add(group);
       meshesRef.current.push(contentMesh);
@@ -936,17 +1115,27 @@ const App: React.FC = () => {
         }
         if (gainNode) node.gainNode = gainNode;
 
+        if (gainNode) node.gainNode = gainNode;
+
         const texture = new THREE.VideoTexture(video);
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
-
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
-
         texture.colorSpace = THREE.SRGBColorSpace;
+
         node.texture = texture;
-        node.contentMesh.material.map = texture;
+
+        // --- Retro Shader Replacement ---
+        const retroMat = createRetroPhotoMaterial();
+        retroMat.uniforms.uMap.value = texture;
+        retroMat.uniforms.uResolution.value.set(video.videoWidth, video.videoHeight);
+
+        node.contentMesh.material.dispose(); // Cleanup placeholder
+        node.contentMesh.material = retroMat;
         node.contentMesh.material.needsUpdate = true;
+
+        retroMaterialsRef.current.push(retroMat); // Track for updates
       } else {
         const src = item.type === 'embed' ? (item.previewSrc || item.src) : item.src;
         textureLoader.load(src, (texture) => {
@@ -955,9 +1144,22 @@ const App: React.FC = () => {
           texture.wrapS = THREE.ClampToEdgeWrapping;
           texture.wrapT = THREE.ClampToEdgeWrapping;
 
+          texture.wrapT = THREE.ClampToEdgeWrapping;
+
           node.texture = texture;
-          node.contentMesh.material.map = texture;
+
+          // --- Retro Shader Replacement ---
+          const retroMat = createRetroPhotoMaterial();
+          retroMat.uniforms.uMap.value = texture;
+          if (texture.image) {
+            retroMat.uniforms.uResolution.value.set(texture.image.width, texture.image.height);
+          }
+
+          node.contentMesh.material.dispose();
+          node.contentMesh.material = retroMat;
           node.contentMesh.material.needsUpdate = true;
+          retroMaterialsRef.current.push(retroMat);
+
           if (texture.image) {
             node.updateGeometry(texture.image.width, texture.image.height);
           }
@@ -977,7 +1179,15 @@ const App: React.FC = () => {
 
       if (node.texture) {
         node.texture.dispose();
-        node.contentMesh.material.map = null;
+        // Dispose Shader Material if used
+        if (node.contentMesh.material instanceof THREE.ShaderMaterial) {
+          // Remove from ref array
+          const matIdx = retroMaterialsRef.current.indexOf(node.contentMesh.material);
+          if (matIdx > -1) retroMaterialsRef.current.splice(matIdx, 1);
+          node.contentMesh.material.dispose();
+        }
+        // Restore basic placeholder
+        node.contentMesh.material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
         node.contentMesh.material.needsUpdate = true;
         node.texture = undefined;
       }
@@ -1190,6 +1400,14 @@ const App: React.FC = () => {
         }
       }
 
+      // Update Glow Materials Time
+      if (glowMaterialsRef.current.length > 0) {
+        const time = performance.now() / 1000;
+        glowMaterialsRef.current.forEach(mat => {
+          mat.uniforms.uTime.value = time;
+        });
+      }
+
       // CLEANUP / GARBAGE COLLECTION:
       // Check keys in loadedMap to handle items that might have been skipped by the O(K) window (e.g. after a long jump)
       Object.keys(loadedMap).forEach(id => {
@@ -1255,40 +1473,32 @@ const App: React.FC = () => {
         if (dist < nearLoad) loadMedia(node);
         else if (dist > farUnload && !isLastItem) unloadMedia(node);
 
-        // Frame Hover Effect
-        const itemId = node.item.id;
-        const frame = frameLinesRef.current[itemId];
-        if (frame) {
-          if (hoveredMediaIdRef.current === itemId) {
-            (frame.material as THREE.LineBasicMaterial).color.setHex(0x000000);
-            (frame.material as THREE.LineBasicMaterial).opacity = 1.0;
-            frame.scale.setScalar(1.02);
-          } else {
-            (frame.material as THREE.LineBasicMaterial).color.setHex(0x222222);
-            (frame.material as THREE.LineBasicMaterial).opacity = 0.8;
-            frame.scale.setScalar(1.0);
-          }
-        }
+
 
         // Opacity Logic
         // 1. Distance Fading
         let distAlpha = 0;
-        const NEAR_FADE_START = 4; // Start fading out when closer than this
-        const NEAR_FADE_END = 0.5; // Fully invisible when closer than this
+        const NEAR_FADE_START = 6; // Start fading earlier
+        const NEAR_FADE_END = 3;   // Fully invisible before hitting camera
 
         if (dist < NEAR_FADE_END) {
           distAlpha = 0; // Still hide close items completely
-        } else if (dist < NEAR_FADE_START) {
-          distAlpha = (dist - NEAR_FADE_END) / (NEAR_FADE_START - NEAR_FADE_END);
-        } else if (dist <= CONFIG.FADE_START) {
-          distAlpha = 1;
-        } else if (dist >= CONFIG.FADE_END) {
-          distAlpha = 0.3; // Floor at 30% opacity instead of 0
+          group.visible = false; // Disable rendering to avoid blocking
         } else {
-          // Lerp from 1.0 down to 0.3
-          const t = (dist - CONFIG.FADE_START) / (CONFIG.FADE_END - CONFIG.FADE_START);
-          distAlpha = 1.0 - (0.7 * t);
+          group.visible = true;
+          if (dist < NEAR_FADE_START) {
+            distAlpha = (dist - NEAR_FADE_END) / (NEAR_FADE_START - NEAR_FADE_END);
+          } else if (dist <= CONFIG.FADE_START) {
+            distAlpha = 1;
+          } else if (dist >= CONFIG.FADE_END) {
+            distAlpha = 0.3; // Floor at 30% opacity instead of 0
+          } else {
+            // Lerp from 1.0 down to 0.3
+            const t = (dist - CONFIG.FADE_START) / (CONFIG.FADE_END - CONFIG.FADE_START);
+            distAlpha = 1.0 - (0.7 * t);
+          }
         }
+
 
         // 2. Load Fade-In
         node.loadedOpacity += (node.targetLoadedOpacity - node.loadedOpacity) * 0.05;
@@ -1297,7 +1507,11 @@ const App: React.FC = () => {
 
         // Apply Opacity to ALL children to prevent "size jump" artifact
         // Content
-        (mesh.material as THREE.MeshBasicMaterial).opacity = globalAlpha;
+        if (mesh.material instanceof THREE.ShaderMaterial) {
+          mesh.material.uniforms.opacity.value = globalAlpha;
+        } else {
+          (mesh.material as THREE.MeshBasicMaterial).opacity = globalAlpha;
+        }
 
         // Background Card
         // Assuming bgMesh is the first child or finding it
@@ -1306,12 +1520,7 @@ const App: React.FC = () => {
           (bgMesh.material as THREE.MeshBasicMaterial).opacity = globalAlpha;
         }
 
-        // Frame
-        if (frame) {
-          const baseFrameOpacity = (hoveredMediaIdRef.current === itemId) ? 1.0 : 0.8;
-          (frame.material as THREE.LineBasicMaterial).opacity = baseFrameOpacity * globalAlpha;
-          (frame.material as THREE.LineBasicMaterial).transparent = true;
-        }
+        // Frame - REMOVED
 
         // Date Label
         const dateMesh = group.children.find(c => c.userData.isDate) as THREE.Mesh;
@@ -1325,6 +1534,8 @@ const App: React.FC = () => {
           scale = 1 + (1 - dist / CONFIG.HIGHLIGHT_RANGE) * 0.15;
         }
         group.scale.set(scale, scale, 1);
+
+        const itemId = node.item.id;
 
         // Audio Logic
         if (videoElementsRef.current[itemId]) {
@@ -1430,6 +1641,16 @@ const App: React.FC = () => {
           audioRef.current.volume = targetBgmVol; // Snap to exact value when close
         }
       }
+
+      if (castleUpdateRef.current) {
+        castleUpdateRef.current(performance.now());
+      }
+
+      // Update Retro Materials
+      const time = performance.now() / 1000;
+      retroMaterialsRef.current.forEach(mat => {
+        mat.uniforms.uTime.value = time;
+      });
 
       renderer.render(scene, camera);
     };
@@ -1546,9 +1767,10 @@ const App: React.FC = () => {
         />
       )}
 
-      <div className={`fixed top-6 left-0 right-6 z-10 pointer-events-none mix-blend-multiply transition-opacity duration-500 flex justify-center ${hasEntered ? 'opacity-100' : 'opacity-0'} `}>
-        <h1 className="text-1xl md:text-3xl font-bold text-gray-800 drop-shadow-sm rotate-[-2deg] text-center px-4">
-          The secret life of <span className="text-gray-600">Warco Mu 🐵</span>
+      <div className={`fixed top-6 left-0 right-0 z-10 pointer-events-none transition-opacity duration-500 flex justify-center ${hasEntered ? 'opacity-100' : 'opacity-0'} `}>
+        <h1 className="text-1xl md:text-3xl font-bold text-[#FFFFFF] drop-shadow-sm text-center px-4 whitespace-nowrap animate-text-glow"
+          style={{ fontFamily: 'ChicagoFLF' }}>
+          The secret life of Warco Mu 🐵
         </h1>
       </div>
 
@@ -1557,18 +1779,19 @@ const App: React.FC = () => {
 
         {/* 1. Audio Button */}
         <div className="relative flex flex-col items-end">
-          {/* @ts-ignore */}
-          <wired-icon-button className="bg-white text-gray-800 rounded-full" onClick={() => togglePanel('audio')}>
+          <button
+            className="w-12 h-12 bg-[#d1d1d1] border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all"
+            onClick={() => togglePanel('audio')}
+          >
             <IconMusic />
-            {/* @ts-ignore */}
-          </wired-icon-button>
+          </button>
 
           {activePanel === 'audio' && (
             <div className="absolute top-12 right-0 z-50 animate-fade-in">
               {/* @ts-ignore */}
-              <wired-card elevation={3} className="bg-white p-4 w-72 block">
-                <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
-                  <span className="font-bold text-sm">Audio Settings</span>
+              <wired-card elevation={3} className="bg-white p-4 w-72 block border-2 border-black">
+                <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-3">
+                  <span className="text-lg" style={{ fontFamily: 'ChicagoFLF' }}>Audio Settings</span>
                   <button onClick={() => setActivePanel(null)} className="text-gray-500 hover:text-black"><IconClose /></button>
                 </div>
 
@@ -1622,7 +1845,7 @@ const App: React.FC = () => {
                       <div
                         key={idx}
                         onClick={() => playTrack(idx)}
-                        className={`text-xs px-2 py-1 cursor-pointer rounded border border-transparent hover:border-gray-300 ${currentTrackIndex === idx ? 'bg-blue-50 font-bold text-blue-700' : 'text-gray-600'} `}
+                        className={`text-xs px-2 py-1 cursor-pointer rounded border border-transparent hover:border-gray-300 ${currentTrackIndex === idx ? 'bg-gray-50 font-bold text-gray-700' : 'text-gray-600'} `}
                       >
                         {idx + 1}. {track.title}
                       </div>
@@ -1637,18 +1860,19 @@ const App: React.FC = () => {
 
         {/* 2. General Settings Button */}
         <div className="relative flex flex-col items-end">
-          {/* @ts-ignore */}
-          <wired-icon-button className="bg-white text-gray-800 rounded-full" onClick={() => togglePanel('general')}>
+          <button
+            className="w-12 h-12 bg-[#d1d1d1] border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all"
+            onClick={() => togglePanel('general')}
+          >
             <IconSettings />
-            {/* @ts-ignore */}
-          </wired-icon-button>
+          </button>
 
           {activePanel === 'general' && (
             <div className="absolute top-12 right-0 z-50 animate-fade-in">
               {/* @ts-ignore */}
-              <wired-card elevation={3} className="bg-white p-4 w-64 block">
-                <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
-                  <span className="font-bold text-sm">General Settings</span>
+              <wired-card elevation={3} className="bg-white p-4 w-64 block border-2 border-black">
+                <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-3">
+                  <span className="text-lg" style={{ fontFamily: 'ChicagoFLF' }}>General Settings</span>
                   <button onClick={() => setActivePanel(null)} className="text-gray-500 hover:text-black"><IconClose /></button>
                 </div>
                 <div>
@@ -1685,18 +1909,19 @@ const App: React.FC = () => {
 
         {/* 3. Credits Button */}
         <div className="relative flex flex-col items-end">
-          {/* @ts-ignore */}
-          <wired-icon-button className="bg-white text-gray-800 rounded-full" onClick={() => togglePanel('credit')}>
+          <button
+            className="w-12 h-12 bg-[#d1d1d1] border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all"
+            onClick={() => togglePanel('credit')}
+          >
             <IconInfo />
-            {/* @ts-ignore */}
-          </wired-icon-button>
+          </button>
 
           {activePanel === 'credit' && (
             <div className="absolute top-12 right-0 z-50 animate-fade-in">
               {/* @ts-ignore */}
-              <wired-card elevation={3} className="bg-white p-4 w-64 block">
-                <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
-                  <span className="font-bold text-sm">Credits</span>
+              <wired-card elevation={3} className="bg-white p-4 w-64 block border-2 border-black">
+                <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-3">
+                  <span className="text-lg" style={{ fontFamily: 'ChicagoFLF' }}>Credits</span>
                   <button onClick={() => setActivePanel(null)} className="text-gray-500 hover:text-black"><IconClose /></button>
                 </div>
                 <div className="text-xs text-gray-600 leading-relaxed">
@@ -1750,8 +1975,8 @@ const App: React.FC = () => {
           ))}
           <div
             ref={timelineRef}
-            className="h-full bg-blue-500 relative transition-all duration-75 z-0"
-            style={{ width: '0%', backgroundImage: "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjNDI5OUUxIi8+CjxwYXRoIGQ9Ik0wIDBMNCA0Wk00IDBMMCA0WiIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==')" }}
+            className="h-full bg-gray-500 relative transition-all duration-75 z-0"
+            style={{ width: '0%', backgroundImage: "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjNkI3MjgwIi8+CjxwYXRoIGQ9Ik0wIDBMNCA0Wk00IDBMMCA0WiIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==')" }}
           />
           {timelineHoverDate && (
             <div

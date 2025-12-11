@@ -327,12 +327,13 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
       </div>
 
       {/* Main Card - Fades out on click */}
+      {/* Main Card - Fades out on click */}
       {/* Removed hover:scale-105 for better mobile experience, or use active:scale-95 only */}
-      <div className={`relative z-20 bg-white p-4 shadow-2xl border-2 border-gray-100 transform scale-100 transition-all duration-500 ease-out 
+      <div className={`relative z-20 bg-neutral-900 p-4 shadow-2xl border-2 border-gray-800 transform scale-100 transition-all duration-500 ease-out 
             ${hasClicked ? 'opacity-0 scale-95' : 'md:hover:scale-105 active:scale-100'}
         `}>
-        <div className="w-80 aspect-[4/5] flex flex-col items-center">
-          <div className="w-full h-64 bg-gray-200 overflow-hidden border-2 border-black mb-4 relative opacity-0 animate-fade-in">
+        <div className="w-[32rem] aspect-[4/5] flex flex-col items-center">
+          <div className="w-full h-80 bg-gray-200 overflow-hidden border-2 border-black mb-4 relative opacity-0 animate-fade-in">
             <video
               src={coverVideo}
               className="w-full h-full object-cover grayscale contrast-125 opacity-80"
@@ -343,9 +344,9 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           </div>
-          <h1 className="text-3xl text-center font-bold mb-1 select-none pointer-events-none">The Secret Life of Warco Mu</h1>
-          <p className="text-gray-500 text-sm text-center mb-6 select-none pointer-events-none">2021.8-2025.12</p>
-          <p className="text-gray-800 text-m text-center mb-6 select-none pointer-events-none">
+          <h1 className="text-3xl text-center font-bold mb-2 select-none pointer-events-none text-white whitespace-nowrap">The Secret Life of Warco Mu</h1>
+          <p className="text-gray-400 text-sm text-center mb-6 select-none pointer-events-none">2021.8-2025.12</p>
+          <p className="text-gray-300 text-m text-center mb-6 select-none pointer-events-none">
             {typedSubtitle}
             {typedSubtitle.length < subtitleFull.length && <span className="animate-pulse">|</span>}
           </p>
@@ -354,7 +355,7 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
           <wired-button
             elevation={2}
             onClick={handleClick}
-            className="bg-black text-white font-bold tracking-widest cursor-pointer select-none"
+            className="bg-white text-black font-bold tracking-widest cursor-pointer select-none"
             style={{ cursor: flowerCursor }}
           >
             PAY RESPECT
