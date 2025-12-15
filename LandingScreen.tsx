@@ -344,7 +344,7 @@ const LandingScreen: React.FC<LandingScreenProps> = ({ onStartTransition }) => {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           </div>
-          <h1 className="text-3xl text-center font-bold mb-2 select-none pointer-events-none text-white whitespace-nowrap">The Secret Life of Warco Mu</h1>
+          <h1 className="text-xl text-center font-bold mb-2 select-none pointer-events-none text-white whitespace-nowrap">The Secret Life of Warco Mu</h1>
           <p className="text-gray-400 text-sm text-center mb-6 select-none pointer-events-none">2021.8-2025.12</p>
           <p className="text-gray-300 text-m text-center mb-6 select-none pointer-events-none">
             {typedSubtitle}

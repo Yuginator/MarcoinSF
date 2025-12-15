@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { MediaItem, MEDIA_DATA, MUSIC_TRACKS, MusicTrack } from './mediaData';
 import { MEDIA_DIMENSIONS } from './mediaDimensions';
 import LandingScreen from './LandingScreen';
-import TennisRainTransition from './TennisRainTransition';
+
 import timelinePinIcon from './assets/icons/timelinePin.svg';
 import { createCastleScene, CASTLE_CONFIG } from './src/scene/Castle';
 
@@ -446,7 +446,7 @@ const App: React.FC = () => {
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+
 
   // Panels State
   const [activePanel, setActivePanel] = useState<'audio' | 'general' | 'credit' | null>(null);
@@ -477,7 +477,8 @@ const App: React.FC = () => {
 
   const videoElementsRef = useRef<{ [id: string]: HTMLVideoElement }>({});
   // Added loadedOpacity and targetLoadedOpacity for smooth resize transitions
-  const mediaNodesRef = useRef<{ item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; gainNode?: GainNode }[]>([]);
+  // Added expandProgress and targetExpandProgress for window expand animation (line to rectangle)
+  const mediaNodesRef = useRef<{ item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; expandProgress: number; targetExpandProgress: number; gainNode?: GainNode }[]>([]);
   const retroMaterialsRef = useRef<THREE.ShaderMaterial[]>([]);
   const isOverlayOpenRef = useRef(false);
   const hasEnteredRef = useRef(false);
@@ -577,25 +578,15 @@ const App: React.FC = () => {
     targetScrollProgressRef.current = 0;
     virtualScrollYRef.current = 0; // Reset virtual scroll
     velocityRef.current = 0; // Reset momentum
-    setIsTransitioning(true);
-  };
 
-  const handleTransitionCovered = () => {
-    // 2. Rain covers screen -> Dismiss Landing Screen -> Reveal Gallery
+    // Directly enter the gallery without transition
     setHasEntered(true);
-
-    // Start gallery logic
     setIsBgmPlaying(true);
     setAutoScrollSpeed(5);
     (Object.values(videoElementsRef.current) as HTMLVideoElement[]).forEach(video => {
       video.muted = false;
       video.volume = 0;
     });
-  };
-
-  const handleTransitionComplete = () => {
-    // 3. Rain clears -> Unmount Rain Component
-    setIsTransitioning(false);
   };
 
   // --- Timeline Hover Logic ---
@@ -1057,7 +1048,7 @@ const App: React.FC = () => {
 
       // Defer loading; populate registry with item-specific geometry updater
       // Init opacity to 0 to hide initial layout shift
-      mediaNodesRef.current.push({ item, contentMesh, updateGeometry, loadedOpacity: 0, targetLoadedOpacity: 0 });
+      mediaNodesRef.current.push({ item, contentMesh, updateGeometry, loadedOpacity: 0, targetLoadedOpacity: 0, expandProgress: 0, targetExpandProgress: 0 });
       // Re-add Date Caption
       // const dateTexture = createDateTexture(item.date); // REMOVED: Old date caption
       // if (dateTexture) {
@@ -1080,7 +1071,7 @@ const App: React.FC = () => {
     // Lazy load helpers
     const loadedMap: Record<string, boolean> = {};
 
-    const loadMedia = (node: { item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; gainNode?: GainNode }) => {
+    const loadMedia = (node: { item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; expandProgress: number; targetExpandProgress: number; gainNode?: GainNode }) => {
       const item = node.item;
       if (loadedMap[item.id]) return;
       if (item.type === 'video') {
@@ -1098,6 +1089,7 @@ const App: React.FC = () => {
         video.onloadedmetadata = () => {
           node.updateGeometry(video.videoWidth, video.videoHeight);
           node.targetLoadedOpacity = 1; // Start fade in
+          node.targetExpandProgress = 1; // Start expand animation
           video.play().catch(() => { }); // Auto-play immediately (muted) for texture update
         };
 
@@ -1164,18 +1156,21 @@ const App: React.FC = () => {
             node.updateGeometry(texture.image.width, texture.image.height);
           }
           node.targetLoadedOpacity = 1; // Start fade in
+          node.targetExpandProgress = 1; // Start expand animation
         });
       }
       loadedMap[item.id] = true;
     };
 
-    const unloadMedia = (node: { item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number }) => {
+    const unloadMedia = (node: { item: MediaItem; contentMesh: THREE.Mesh; updateGeometry: (w: number, h: number) => void; video?: HTMLVideoElement; texture?: THREE.Texture; loadedOpacity: number; targetLoadedOpacity: number; expandProgress: number; targetExpandProgress: number }) => {
       const id = node.item.id;
       if (!loadedMap[id]) return;
 
       // Reset opacity logic
       node.loadedOpacity = 0;
       node.targetLoadedOpacity = 0;
+      node.expandProgress = 0;
+      node.targetExpandProgress = 0;
 
       if (node.texture) {
         node.texture.dispose();
@@ -1500,8 +1495,9 @@ const App: React.FC = () => {
         }
 
 
-        // 2. Load Fade-In
+        // 2. Load Fade-In and Expand Animation
         node.loadedOpacity += (node.targetLoadedOpacity - node.loadedOpacity) * 0.05;
+        node.expandProgress += (node.targetExpandProgress - node.expandProgress) * 0.04;
 
         const globalAlpha = distAlpha * node.loadedOpacity;
 
@@ -1533,7 +1529,10 @@ const App: React.FC = () => {
         if (dist < CONFIG.HIGHLIGHT_RANGE) {
           scale = 1 + (1 - dist / CONFIG.HIGHLIGHT_RANGE) * 0.15;
         }
-        group.scale.set(scale, scale, 1);
+
+        // Apply expand animation (vertical scale from line to rectangle)
+        const scaleY = 0.01 + (node.expandProgress * 0.99); // Start at 1% height, expand to 100%
+        group.scale.set(scale, scale * scaleY, 1);
 
         const itemId = node.item.id;
 
@@ -1759,13 +1758,7 @@ const App: React.FC = () => {
         <LandingScreen onStartTransition={handleStartTransition} />
       )}
 
-      {/* Transition Layer */}
-      {isTransitioning && (
-        <TennisRainTransition
-          onCovered={handleTransitionCovered}
-          onComplete={handleTransitionComplete}
-        />
-      )}
+
 
       <div className={`fixed top-6 left-0 right-0 z-10 pointer-events-none transition-opacity duration-500 flex justify-center ${hasEntered ? 'opacity-100' : 'opacity-0'} `}>
         <h1 className="text-1xl md:text-3xl font-bold text-[#FFFFFF] drop-shadow-sm text-center px-4 whitespace-nowrap animate-text-glow"
@@ -1996,26 +1989,52 @@ const App: React.FC = () => {
             onClick={closeOverlay}
           />
           <div className="relative z-10 w-auto max-w-[95vw] flex flex-col items-center pointer-events-auto">
-            {/* @ts-ignore */}
-            <wired-card elevation={4} className="bg-white p-2 w-full">
-              <div className="p-4 flex flex-col items-center overflow-y-auto max-h-[85vh] no-scrollbar">
-                <div className="w-full flex justify-end mb-2">
-                  {/* @ts-ignore */}
-                  <wired-button onClick={closeOverlay} elevation={2}>Close [X]</wired-button>
+            {/* Mac OS Window Container */}
+            <div className="relative bg-white" style={{
+              border: '2px solid #000000',
+              boxShadow: '0 0 0 2px #a0a0a0, 0 0 0 4px #333333',
+              maxWidth: '90vw',
+            }}>
+              {/* Title Bar */}
+              <div className="relative h-8 flex items-center px-2" style={{
+                background: '#d0d0d0',
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='4' height='4' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='stripeGrad' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.5'/%3E%3Cstop offset='50%25' style='stop-color:%23ffffff;stop-opacity:0.2'/%3E%3Cstop offset='100%25' style='stop-color:%23cccccc;stop-opacity:0.1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='4' height='4' fill='%23d0d0d0'/%3E%3Crect x='0' y='0' width='1' height='4' fill='url(%23stripeGrad)'/%3E%3Crect x='2' y='0' width='1' height='4' fill='url(%23stripeGrad)'/%3E%3C/svg%3E")`,
+                borderBottom: '1px solid #333333',
+              }}>
+                {/* Close Button */}
+                <button
+                  onClick={closeOverlay}
+                  className="w-6 h-6 flex items-center justify-center transition-opacity hover:opacity-80"
+                  style={{
+                    background: '#8e8e8e',
+                    border: '2px solid #333333',
+                  }}
+                  aria-label="Close"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="3">
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                  </svg>
+                </button>
+                {/* Title Text */}
+                <div className="flex-1 text-center text-sm font-bold text-black select-none" style={{ fontFamily: 'ChicagoFLF, sans-serif' }}>
+                  {selectedMedia.title}
                 </div>
+                {/* Spacer for symmetry */}
+                <div className="w-6"></div>
+              </div>
+
+              {/* Content Area */}
+              <div className="p-4 bg-white overflow-y-auto max-h-[85vh] no-scrollbar">
                 <div className="relative flex items-center justify-center bg-black border-2 border-black rounded-sm shadow-inner overflow-hidden"
                   style={{
-                    // Adaptive sizing logic:
-                    // Increase max height for better desktop viewing
-                    maxHeight: '80vh',
-                    maxWidth: '90vw',
-                    // 2. For embeds (no intrinsic size), we must enforce aspect ratio via CSS
+                    maxHeight: '75vh',
+                    maxWidth: '85vw',
                     aspectRatio: selectedMedia.type === 'embed'
                       ? (MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 16 / 9)
                       : undefined,
-                    // 3. For embeds, we need explicit width to fill the aspect-ratio box but not overflow
                     width: selectedMedia.type === 'embed'
-                      ? `min(100%, calc(80vh * ${(MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 1.777)}))`
+                      ? `min(100%, calc(75vh * ${(MEDIA_DIMENSIONS[selectedMedia.filename]?.aspectRatio || 1.777)}))`
                       : 'auto',
                     minWidth: selectedMedia.type === 'embed' ? '60vw' : 'auto',
                   }}
@@ -2023,7 +2042,7 @@ const App: React.FC = () => {
                   {selectedMedia.type === 'video' && (
                     <video
                       src={selectedMedia.src}
-                      className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
+                      className="block max-w-full max-h-[75vh] w-auto h-auto object-contain"
                       controls
                       autoPlay
                     />
@@ -2033,7 +2052,7 @@ const App: React.FC = () => {
                       src={(() => {
                         const base = selectedMedia.embedUrl || selectedMedia.src;
                         const sep = base.includes('?') ? '&' : '?';
-                        return `${base}${sep} autoplay=1&muted=1&playsinline=1&loop=1&controls=1`;
+                        return `${base}${sep}autoplay=1&muted=1&playsinline=1&loop=1&controls=1`;
                       })()}
                       className="w-full h-full"
                       allow="autoplay; fullscreen; picture-in-picture"
@@ -2045,21 +2064,17 @@ const App: React.FC = () => {
                     <img
                       src={selectedMedia.src}
                       alt={selectedMedia.title}
-                      className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
+                      className="block max-w-full max-h-[75vh] w-auto h-auto object-contain"
                     />
                   )}
                 </div>
-                <div className="mt-6 text-center">
-                  <h2 className="text-xl md:text-3xl font-bold text-gray-800 mb-2">
-                    {selectedMedia.title}
-                  </h2>
-                  {selectedMedia.description && (
-                    <p className="text-gray-600 text-sm md:text-lg font-light">{selectedMedia.description}</p>
-                  )}
-                </div>
+                {selectedMedia.description && (
+                  <div className="mt-4 text-center">
+                    <p className="text-gray-800 text-sm md:text-base">{selectedMedia.description}</p>
+                  </div>
+                )}
               </div>
-              {/* @ts-ignore */}
-            </wired-card>
+            </div>
           </div>
         </div>
       )}
