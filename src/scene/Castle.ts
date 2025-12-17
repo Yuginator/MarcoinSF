@@ -257,6 +257,7 @@ export const createCastleScene = (scene: THREE.Scene, minZ: number = -200) => {
     const sCenters = new Float32Array(stripeCount * 3);
     const sDimensions = new Float32Array(stripeCount * 2); // w, h
     const sColors = new Float32Array(stripeCount * 3);
+    const sColors2 = new Float32Array(stripeCount * 3); // Second color for gradient
     const sGlows = new Float32Array(stripeCount);
 
     for (let i = 0; i < stripeCount; i++) {
@@ -273,18 +274,27 @@ export const createCastleScene = (scene: THREE.Scene, minZ: number = -200) => {
         sDimensions[i * 2 + 0] = width;
         sDimensions[i * 2 + 1] = length;
 
-        const colorHex = paletteColors[Math.floor(Math.random() * paletteColors.length)];
-        const col = new THREE.Color(colorHex);
-        sColors[i * 3 + 0] = col.r;
-        sColors[i * 3 + 1] = col.g;
-        sColors[i * 3 + 2] = col.b;
+        // Pick two random colors from palette for gradient
+        const colorHex1 = paletteColors[Math.floor(Math.random() * paletteColors.length)];
+        const colorHex2 = paletteColors[Math.floor(Math.random() * paletteColors.length)];
+        const col1 = new THREE.Color(colorHex1);
+        const col2 = new THREE.Color(colorHex2);
 
-        sGlows[i] = Math.random() < 0.1 ? 1.0 : 0.0;
+        sColors[i * 3 + 0] = col1.r;
+        sColors[i * 3 + 1] = col1.g;
+        sColors[i * 3 + 2] = col1.b;
+
+        sColors2[i * 3 + 0] = col2.r;
+        sColors2[i * 3 + 1] = col2.g;
+        sColors2[i * 3 + 2] = col2.b;
+
+        sGlows[i] = 1.0; // All stripes glow now (was 10%)
     }
 
     instGeom.setAttribute('aCenter', new THREE.InstancedBufferAttribute(sCenters, 3));
     instGeom.setAttribute('aDimension', new THREE.InstancedBufferAttribute(sDimensions, 2));
     instGeom.setAttribute('aColor', new THREE.InstancedBufferAttribute(sColors, 3));
+    instGeom.setAttribute('aColor2', new THREE.InstancedBufferAttribute(sColors2, 3));
     instGeom.setAttribute('aGlow', new THREE.InstancedBufferAttribute(sGlows, 1));
 
     const stripeMat = new THREE.ShaderMaterial({
@@ -298,18 +308,23 @@ export const createCastleScene = (scene: THREE.Scene, minZ: number = -200) => {
             attribute vec3 aCenter;
             attribute vec2 aDimension;
             attribute vec3 aColor;
+            attribute vec3 aColor2;
             attribute float aGlow;
             
             varying vec3 vColor;
+            varying vec3 vColor2;
             varying vec2 vUv;
             varying float vGlow; // pass to frag
             
             void main() {
                 vColor = aColor;
+                vColor2 = aColor2;
                 vGlow = aGlow;
                 vUv = uv; // Pass basic plane UVs (0..1)
                 
-                float currentZ = aCenter.z + (uTime * uSpeed);
+                // Glowing stripes move 2x faster
+                float speedMultiplier = 1.0 + aGlow; // 1.0 for normal, 2.0 for glowing
+                float currentZ = aCenter.z + (uTime * uSpeed * speedMultiplier);
                 float relativeZ = uZStart - currentZ; 
                 float wrappedRelZ = mod(relativeZ, uZRange);
                 float finalZ = uZStart - wrappedRelZ;
@@ -333,18 +348,19 @@ export const createCastleScene = (scene: THREE.Scene, minZ: number = -200) => {
         `,
         fragmentShader: `
             varying vec3 vColor;
+            varying vec3 vColor2;
             varying vec2 vUv;
             varying float vGlow;
             void main() {
-                // Gradient Opacity based on UV.y
-                // Assuming y=1 is front (top) and y=0 is back (bottom)
-                // Or vice versa depending on PlaneGeometry rotation.
-                // Standard Plane facing Z has Y up.
+                // Smooth gradient between two random palette colors
+                // vColor = head (front), vColor2 = tail (back)
+                vec3 gradientColor = mix(vColor2, vColor, vUv.y);
                 
-                float alpha = smoothstep(0.0, 0.8, vUv.y); 
+                // Opacity Gradient based on UV.y (front opaque, back transparent)
+                float alpha = smoothstep(0.0, 0.2, vUv.y); 
                 
-                // Brighter base (2.0x) + Massive Glow Boost (50x)
-                vec3 finalColor = vColor * (2.0 + vGlow * 50.0);
+                // Brighter base (2.0x)
+                vec3 finalColor = gradientColor * 2.0;
                 
                 gl_FragColor = vec4(finalColor, alpha * 0.8);
             }
@@ -358,6 +374,97 @@ export const createCastleScene = (scene: THREE.Scene, minZ: number = -200) => {
     const stripes = new THREE.Mesh(instGeom, stripeMat);
     stripes.frustumCulled = false;
     group.add(stripes);
+
+    // C. BLOOM/GLOW LAYER for Glowing Stripes
+    // Create a second layer with larger, more transparent stripes for bloom effect
+    const glowInstGeom = new THREE.InstancedBufferGeometry();
+    glowInstGeom.index = baseGeom.index;
+    glowInstGeom.attributes.position = baseGeom.attributes.position;
+    glowInstGeom.attributes.uv = baseGeom.attributes.uv;
+
+    // Reuse the same attributes but scale up dimensions for bloom
+    glowInstGeom.setAttribute('aCenter', new THREE.InstancedBufferAttribute(sCenters, 3));
+    glowInstGeom.setAttribute('aDimension', new THREE.InstancedBufferAttribute(sDimensions, 2));
+    glowInstGeom.setAttribute('aColor', new THREE.InstancedBufferAttribute(sColors, 3));
+    glowInstGeom.setAttribute('aColor2', new THREE.InstancedBufferAttribute(sColors2, 3));
+    glowInstGeom.setAttribute('aGlow', new THREE.InstancedBufferAttribute(sGlows, 1));
+
+    const glowMat = new THREE.ShaderMaterial({
+        uniforms: commonUniforms,
+        vertexShader: `
+            uniform float uTime;
+            uniform float uSpeed;
+            uniform float uZStart;
+            uniform float uZRange;
+            
+            attribute vec3 aCenter;
+            attribute vec2 aDimension;
+            attribute vec3 aColor;
+            attribute vec3 aColor2;
+            attribute float aGlow;
+            
+            varying vec3 vColor;
+            varying vec3 vColor2;
+            varying vec2 vUv;
+            varying float vGlow;
+            
+            void main() {
+                vColor = aColor;
+                vColor2 = aColor2;
+                vGlow = aGlow;
+                vUv = uv;
+                
+                // Glowing stripes move 3x faster (same as main stripes)
+                float speedMultiplier = 1.0 + 2 * aGlow; // 1.0 for normal, 3.0 for glowing
+                float currentZ = aCenter.z + (uTime * uSpeed * speedMultiplier);
+                float relativeZ = uZStart - currentZ; 
+                float wrappedRelZ = mod(relativeZ, uZRange);
+                float finalZ = uZStart - wrappedRelZ;
+                
+                vec3 transformed = position;
+                
+                // Scale up for bloom effect (3x wider, 1.5x longer for z-axis glow)
+                float w = aDimension.x * 3.0;
+                float l = aDimension.y * 1.5;
+                
+                vec3 localPos = vec3(transformed.x * w, 0.0, transformed.y * l);
+                vec3 worldPos = localPos + vec3(aCenter.x, aCenter.y, finalZ);
+                
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            varying vec3 vColor2;
+            varying vec2 vUv;
+            varying float vGlow;
+            void main() {
+                // Smooth gradient between two colors
+                vec3 gradientColor = mix(vColor2, vColor, vUv.y);
+                
+                // Soft radial falloff from center (creates blur effect)
+                float distFromCenter = abs(vUv.x - 0.5) * 2.0; // 0 at center, 1 at edges
+                float radialFalloff = 1.0 - smoothstep(0.0, 1.0, distFromCenter);
+                
+                // Opacity gradient along length
+                float alpha = smoothstep(0.0, 0.2, vUv.y) * radialFalloff;
+                
+                vec3 finalColor = gradientColor * 10; // Much darker to preserve color with additive blending
+                
+                gl_FragColor = vec4(finalColor, alpha * 0.9); // Moderate opacity for visible colored bloom
+            }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+
+    const glowStripes = new THREE.Mesh(glowInstGeom, glowMat);
+    glowStripes.frustumCulled = false;
+    glowStripes.renderOrder = -1; // Render behind main stripes
+    group.add(glowStripes);
+
 
     scene.add(group);
 
