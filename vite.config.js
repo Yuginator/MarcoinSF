@@ -5,5 +5,5 @@ import svgr from 'vite-plugin-svgr'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), svgr()],
-  base: '/MarcoGallery/', // Replace with your repository name
+  base: '/MarcoinSF/', // Replace with your repository name
 })
