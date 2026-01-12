@@ -1,0 +1,85 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: oklch(0.985 0.01 247.671);
+  --color-brand-100: oklch(0.967 0.021 248.887);
+  --color-brand-200: oklch(0.923 0.05 251.26);
+  --color-brand-300: oklch(0.866 0.082 250.778);
+  --color-brand-400: oklch(0.793 0.134 250.183);
+  --color-brand-500: oklch(0.709 0.187 250.291);
+  --color-brand-600: oklch(0.597 0.207 251.573);
+  --color-brand-700: oklch(0.485 0.19 251.789);
+  --color-brand-800: oklch(0.407 0.156 251.683);
+  --color-brand-900: oklch(0.354 0.126 250.812);
+  --color-brand-950: oklch(0.245 0.09 250.485);
+
+  --font-ipix: "IPix", sans-serif;
+  --font-foglihtenno: "Foglihtenno", serif;
+  --font-hyxyuan: "HYXYuan", sans-serif;
+  --font-hyyisong: "HYYiSong", serif;
+}
+
+@layer utilities {
+
+  /* Custom Fonts */
+  @font-face {
+    font-family: 'IPix';
+    src: url('./assets/fonts/ipix.ttf') format('truetype');
+  }
+
+  @font-face {
+    font-family: 'Foglihtenno';
+    src: url('./assets/fonts/foglihtenno.otf') format('opentype');
+  }
+
+  @font-face {
+    font-family: 'HYXYuan';
+    src: url('./assets/fonts/hyxyuan.ttf') format('truetype');
+  }
+
+  @font-face {
+    font-family: 'HYYiSong';
+    src: url('./assets/fonts/hyyisong.ttf') format('truetype');
+  }
+
+  .doodle-svg * {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 2px;
+    /* Enforce uniform thickness */
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+
+  /* Force Hide Scrollbar Globally - targeting Lenis specific states too */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  .lenis::-webkit-scrollbar,
+  .lenis-smooth::-webkit-scrollbar,
+  .lenis-scrolling::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Firefox / IE / Edge */
+  html,
+  body,
+  .lenis,
+  .lenis-smooth,
+  .lenis-scrolling {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+}
