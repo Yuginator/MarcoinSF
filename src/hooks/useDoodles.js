@@ -13,12 +13,23 @@ const LampConfigs = [
 ];
 // console.log('Explicitly Loaded Lamps:', LampComponents); // Remove or update log
 
+// Simple seeded random generator (Linear Congruential Generator)
+const createSeededRandom = (seed) => {
+    let value = seed;
+    return () => {
+        value = (value * 1664525 + 1013904223) % 4294967296;
+        return value / 4294967296;
+    };
+};
+
 export function useDoodles({
     spacerWidth,
     galleryDataLength,
     crowdParallax = 0.5,
     fgParallax = 1.0,
-    density = 300
+    density = 300,
+    loopWidth = 0,
+    bgParallax = 0.5
 }) {
     return useMemo(() => {
         // Calculate max scrollable distance based on spacer
@@ -27,90 +38,136 @@ export function useDoodles({
             (galleryDataLength * 400) // Fallback estimate
         );
 
-        // Pool generation
-        const maxExpectedWidth = scrollRange + window.innerWidth;
-        const poolCount = Math.max(50, Math.floor(maxExpectedWidth / 200));
+        // Calculate cycle lengths if loop is active
+        // Cycle Length = ScrollLoopDistance * (1 - LayerParallax)
+        // ScrollLoopDistance = loopWidth / (1 - bgParallax)
+        const scrollLoopDist = loopWidth > 0 ? loopWidth / (1 - bgParallax) : 0;
 
-        const pool = [];
-        if (DoodleComponents.length > 0) {
-            for (let i = 0; i < poolCount; i++) {
-                pool.push(DoodleComponents[Math.floor(Math.random() * DoodleComponents.length)]);
-            }
-        }
-
-        // Helper to generate layer
-        const generateLayer = (parallax, scale, layerDensity = density) => {
+        // Helper to generate cyclic layer
+        const generateLayer = (parallax, scale, layerDensity = density, seedOffset = 0) => {
             const items = [];
-            // Calculate required coverage width
             const distWidth = scrollRange + window.innerWidth;
+            const rng = createSeededRandom(12345 + seedOffset); // Fixed seed + offset
 
-            // Note: The previous logic used `distWidth / density` which seems correct for loop count.
-            const count = Math.floor(distWidth / layerDensity);
+            // Determine Cycle Length
+            // If parallax == 1 (Foreground?), transform is 0?
+            // Wait, calculateFixedTransform: -1 * (1 - factor).
+            // If factor=1, transform is 0. Content moves with scroll (static context).
+            // If factor != 1, content moves.
+            // visualShift = scroll * -1 * (1 - parallax).
+            // contentWidth = scrollLoopDist * (1 - parallax).
+            let cycleLength = distWidth; // Default to full width
+            if (scrollLoopDist > 0) {
+                cycleLength = Math.abs(scrollLoopDist * (1 - parallax));
+                // Safety for edge cases (parallax=1 => cycle=0)
+                if (cycleLength < 100) cycleLength = distWidth;
+            }
+
+            // Generate Master Items for one cycle
+            const masterItems = [];
+            // Ensure density matches cycle length
+            const count = Math.ceil(cycleLength / layerDensity);
 
             for (let i = 0; i < count; i++) {
-                // eslint-disable-next-line react-hooks/purity
-                const Doodle = pool.length > 0 ? pool[Math.floor((items.length + (parallax * 10))) % pool.length] : null;
-                if (!Doodle) break;
+                if (DoodleComponents.length === 0) break;
+                // Pick random doodle
+                const Doodle = DoodleComponents[Math.floor(rng() * DoodleComponents.length)];
 
-                // UNIFORM DISTRIBUTION (with jitter)
-                const sectionWidth = distWidth / count;
+                const sectionWidth = cycleLength / count;
                 const basePos = i * sectionWidth;
-                const jitter = (Math.random() - 0.5) * sectionWidth * 0.8;
+                const jitter = (rng() - 0.5) * sectionWidth * 0.8;
 
-                const leftPos = Math.max(0, Math.floor(basePos + jitter));
+                // Position within cycle
+                const relativeLeft = Math.max(0, basePos + jitter);
 
-                items.push({
+                masterItems.push({
                     Component: Doodle,
-                    left: leftPos,
+                    relativeLeft, // Store relative pos
                     rotation: 0,
-                    scaleX: Math.random() > 0.5 ? 1 : -1,
-                    baseWidth: (420 + Math.random() * 80) * scale,
+                    scaleX: rng() > 0.5 ? 1 : -1,
+                    baseWidth: (420 + rng() * 80) * scale,
                 });
             }
+
+            // Replicate Master Items to fill distWidth
+            // We need to cover from 0 to distWidth
+            // Also might need negative buffer? simpler to just start at 0 if spacer handles offset.
+            // But wait, the "Start" of real content is shifted by `startOffset`.
+            // The Cyclic Pattern must align such that `Doodle(Start)` is consistent.
+            // Since we generate starting at 0, and 0 aligns with "Top Left" of container.
+            // As long as the pattern repeats every `cycleLength`, it should be fine.
+
+            const numCycles = Math.ceil(distWidth / cycleLength) + 1;
+
+            for (let k = 0; k < numCycles; k++) {
+                masterItems.forEach(item => {
+                    const finalLeft = item.relativeLeft + (k * cycleLength);
+                    if (finalLeft < distWidth) {
+                        items.push({
+                            ...item,
+                            left: finalLeft
+                        });
+                    }
+                });
+            }
+
             return items;
         };
 
-        // Helper to generate lamps (Ceiling)
-        const generateLamps = (parallax) => {
+        // Helper to generate lamps (Ceiling) - Same logic
+        const generateLamps = (parallax, seedOffset = 999) => {
             const items = [];
             const distWidth = scrollRange + window.innerWidth;
+            const rng = createSeededRandom(67890 + seedOffset);
 
-            // Low density for lamps. For example, 1 lamp every 4 * density (e.g., 1200px)
+            let cycleLength = distWidth;
+            if (scrollLoopDist > 0) {
+                cycleLength = Math.abs(scrollLoopDist * (1 - parallax));
+                if (cycleLength < 100) cycleLength = distWidth;
+            }
+
             const lampDensity = density * 4;
-            const count = Math.floor(distWidth / lampDensity);
-            console.log('Generating Lamps:', { distWidth, lampDensity, count, parallax });
+            const count = Math.ceil(cycleLength / lampDensity);
 
+            const masterItems = [];
             for (let i = 0; i < count; i++) {
                 if (LampConfigs.length === 0) break;
-                const config = LampConfigs[Math.floor(Math.random() * LampConfigs.length)];
+                const config = LampConfigs[Math.floor(rng() * LampConfigs.length)];
                 const { Component, width } = config;
 
-                const sectionWidth = distWidth / count;
+                const sectionWidth = cycleLength / count;
                 const basePos = i * sectionWidth;
-                const jitter = (Math.random() - 0.5) * sectionWidth * 0.6;
-                const leftPos = Math.max(0, Math.floor(basePos + jitter));
+                const jitter = (rng() - 0.5) * sectionWidth * 0.6;
+                const relativeLeft = Math.max(0, basePos + jitter);
 
-                items.push({
+                masterItems.push({
                     Component,
-                    left: leftPos,
+                    relativeLeft,
                     rotation: 0,
-                    scaleX: Math.random() > 0.5 ? 1 : -1,
-                    // Scale: Lamps usually serve as environmental decor.
-                    // Let's use a standard size or slightly randomized.
-                    // The crowd logic uses ~460px base * 0.3 scale = ~140px final.
-                    // If we want lamps to look proportional, we can aim for ~100-200px final width.
-                    // Assuming we use 1.0 scale factor here and let loop define baseWidth.
-                    // 150 + random * 100 = 150-250px.
+                    scaleX: rng() > 0.5 ? 1 : -1,
                     baseWidth: width,
+                });
+            }
+
+            const numCycles = Math.ceil(distWidth / cycleLength) + 1;
+            for (let k = 0; k < numCycles; k++) {
+                masterItems.forEach(item => {
+                    const finalLeft = item.relativeLeft + (k * cycleLength);
+                    if (finalLeft < distWidth) {
+                        items.push({
+                            ...item,
+                            left: finalLeft
+                        });
+                    }
                 });
             }
             return items;
         };
 
         return {
-            crowdDoodles: generateLayer(crowdParallax, 1.0),
-            foregroundDoodles: generateLayer(fgParallax, 1.0, density * 2),
+            crowdDoodles: generateLayer(crowdParallax, 1.0, density, 0),
+            foregroundDoodles: generateLayer(fgParallax, 1.0, density * 2, 100),
             ceilingDoodles: generateLamps(crowdParallax)
         };
-    }, [crowdParallax, fgParallax, spacerWidth, galleryDataLength, density]);
+    }, [crowdParallax, fgParallax, spacerWidth, galleryDataLength, density, loopWidth, bgParallax]);
 }

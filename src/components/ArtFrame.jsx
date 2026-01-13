@@ -4,31 +4,61 @@ import { useIntersection } from 'react-use';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import FramedMedia from './FramedMedia';
+import { debugState } from '../debugState'; // DEBUG
 
 import ProjectorSvg from '../assets/doodle/projector/projector.svg?react';
 
 const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
-    const ref = useRef(null);
+    const mainRef = useRef(null);
+    const focusRef = useRef(null);
     const videoRef = useRef(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
     // Only check intersection for videos to save resources
-    const intersection = useIntersection(ref, {
+    // Performance: Increased threshold to 0.5 (50% visibility) to prevents
+    // too many videos from loading/playing at once.
+    const intersection = useIntersection(mainRef, {
         root: null,
         rootMargin: '200px',
-        threshold: 0.1,
+        threshold: 0.5,
     });
 
     // 2. Focus Detection (Center of Screen)
-    // We reuse the same ref but checking for a narrow center strip
-    const focusIntersection = useIntersection(ref, {
+    // We use a separate internal ref for precise center detection
+    const focusIntersection = useIntersection(focusRef, {
         root: null,
-        rootMargin: '0px -45% 0px -45%', // Active only in the middle 10%
+        rootMargin: '0px -49% 0px -49%', // Active only in the middle 2%
         threshold: 0, // Trigger as soon as one pixel enters this zone
     });
 
     const isFocused = focusIntersection && focusIntersection.isIntersecting;
+
+    // DEBUG: Track focused item
+    useEffect(() => {
+        if (isFocused) {
+            debugState.nearestItem = item.id || 'Unknown';
+        }
+    }, [isFocused, item.id]);
+
+    // 3. Focus Mode Playback
+    // Only play video when strictly focused (in color)
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (isFocused) {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // Auto-play was prevented
+                    // usually due to browser policy if unmuted, but we are muted.
+                });
+            }
+        } else {
+            video.pause();
+        }
+    }, [isFocused]);
 
     // Calculate random scale (0.8 to 1.0) deterministically based on ID
     const randomScale = useMemo(() => {
@@ -75,7 +105,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
     // Randomize rotation slightly for hand-drawn feel
     return (
         <motion.div
-            ref={ref}
+            ref={mainRef}
             className={clsx(
                 "relative flex-shrink-0 transition-transform duration-500 will-change-transform pointer-events-auto"
             )}
@@ -89,6 +119,8 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "0px -100px" }}
         >
+            {/* Focus Detection Trigger Layer */}
+            <div ref={focusRef} className="absolute inset-0 pointer-events-none" />
             {/* Projector Doodle for Embeds */}
             {item.lightboxEmbed && (
                 <div
@@ -131,7 +163,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                                         loop
                                         muted
                                         playsInline
-                                        autoPlay
+                                        onLoadedMetadata={(e) => { e.target.currentTime = 0.5; }}
                                     />
                                 ) : (
                                     <div className="w-full h-full bg-stone-200 animate-pulse" />
@@ -177,7 +209,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                                     loop
                                     muted
                                     playsInline
-                                    autoPlay
+                                    onLoadedMetadata={(e) => { e.target.currentTime = 0.5; }}
                                 />
                             ) : (
                                 <div className="w-full h-full bg-stone-200 animate-pulse" />

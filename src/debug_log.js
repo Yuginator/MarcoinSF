@@ -1,1 +1,4 @@
-console.log('FrameSrc Value:', frameSrc);
+// Debug utility - disabled
+export const debugLog = (...args) => {
+    // no-op
+};

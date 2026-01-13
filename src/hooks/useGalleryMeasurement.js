@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 export function useGalleryMeasurement(containerRef) {
     const [contentWidth, setContentWidth] = useState(0);
     const [irisRadius, setIrisRadius] = useState(80);
+    const [loopWidth, setLoopWidth] = useState(0);
+    const [startOffset, setStartOffset] = useState(0);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -29,6 +31,21 @@ export function useGalleryMeasurement(containerRef) {
                 setContentWidth(width);
             } else {
                 setContentWidth(0);
+            }
+
+            // MEASURE LOOP WIDTH
+            const loopMarker = container.querySelector('#gallery-loop-marker');
+            const startMarker = container.querySelector('#gallery-start-marker');
+
+            if (loopMarker && startMarker) {
+                // Loop Width is distance between Start Marker and Loop Marker
+                // (End of Real Content minus Start of Real Content)
+                // This is safer than mixing 0 and offsetLeft.
+                setLoopWidth(loopMarker.offsetLeft - startMarker.offsetLeft);
+                setStartOffset(startMarker.offsetLeft);
+            } else if (loopMarker) {
+                // Fallback if start marker not found (though it should be)
+                setLoopWidth(loopMarker.offsetLeft);
             }
         };
 
@@ -57,5 +74,5 @@ export function useGalleryMeasurement(containerRef) {
         };
     }, [containerRef]);
 
-    return { contentWidth, irisRadius, setContentWidth };
+    return { contentWidth, irisRadius, setContentWidth, loopWidth, startOffset };
 }

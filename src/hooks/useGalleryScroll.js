@@ -4,6 +4,8 @@ import { useAnimationFrame } from 'framer-motion';
 
 export function useGalleryScroll({
     contentWidth,
+    loopWidth = 0,
+    startOffset = 0, // NEW: Buffer offset
     bgParallax = 0.5,
     autoScrollSpeed = 2.5,
     acceleration = 0.01,
@@ -12,6 +14,7 @@ export function useGalleryScroll({
     const lenis = useLenis();
     const lastScrollRef = useRef(0);
     const currentSpeedRef = useRef(0);
+    const initRef = useRef(false); // Track initialization
 
     // Transition State for Iris/Navigation
     const [transitionState, setTransitionState] = useState('idle'); // 'idle' | 'closing' | 'opening'
@@ -38,7 +41,47 @@ export function useGalleryScroll({
     useAnimationFrame(() => {
         if (!lenis) return;
 
-        const currentScroll = lenis.scroll;
+        // --- INITIALIZATION ---
+        // Jump to Start Offset on first valid frame
+        if (!initRef.current && startOffset > 0) {
+            // Calculate scroll position needed to bring Start Marker to viewport 0
+            // Logic: startMarker.left in DOM is `startOffset`.
+            // Transform is `translateX(-scroll * (1-bgParallax))`.
+            // We want `startOffset - scroll * (1-bgParallax) = 0`.
+            // So `scroll = startOffset / (1-bgParallax)`.
+            const startScroll = startOffset / (1 - bgParallax);
+
+            lenis.scrollTo(startScroll, { immediate: true });
+            lastScrollRef.current = startScroll;
+            initRef.current = true;
+            return; // Skip this frame to let jumps settle
+        }
+
+        let currentScroll = lenis.scroll;
+
+        // --- INFINITE LOOP CHECK ---
+        if (loopWidth > 0 && startOffset > 0) {
+            const scrollLoopLength = loopWidth / (1 - bgParallax);
+            const scrollStart = startOffset / (1 - bgParallax);
+
+            // Backward Check: If we scroll into the pre-buffer (left of Start Marker)
+            if (currentScroll < scrollStart) {
+                // Jump Forward (to end of loop)
+                const overflow = currentScroll + scrollLoopLength;
+                lenis.scrollTo(overflow, { immediate: true });
+                currentScroll = overflow;
+                lastScrollRef.current = overflow;
+            }
+            // Forward Check: If we scroll past the end of the loop
+            else if (currentScroll >= scrollStart + scrollLoopLength) {
+                // Jump Backward (to start of loop)
+                const overflow = currentScroll - scrollLoopLength;
+                lenis.scrollTo(overflow, { immediate: true });
+                currentScroll = overflow;
+                lastScrollRef.current = overflow;
+            }
+        }
+
         lastScrollRef.current = currentScroll;
 
         if (!enableAutoScroll) {
@@ -77,14 +120,22 @@ export function useGalleryScroll({
 
     const performScrollJump = useCallback(() => {
         if (!lenis) return;
+
         const maxScroll = Math.max(0, spacerWidth - window.innerWidth);
-        const targetPx = targetProgress * maxScroll;
+        let effectiveMaxScroll = maxScroll;
+        const scrollStart = startOffset > 0 ? startOffset / (1 - bgParallax) : 0;
+
+        if (loopWidth > 0) {
+            effectiveMaxScroll = loopWidth / (1 - bgParallax);
+        }
+
+        const targetPx = scrollStart + (targetProgress * effectiveMaxScroll);
         lenis.scrollTo(targetPx, { immediate: true });
 
         setTimeout(() => {
             setTransitionState('opening');
         }, 50);
-    }, [lenis, spacerWidth, targetProgress]);
+    }, [lenis, spacerWidth, targetProgress, loopWidth, bgParallax, startOffset]);
 
     // Force resize on mount/update
     useEffect(() => {

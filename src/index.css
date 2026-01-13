@@ -14,9 +14,6 @@
   --color-brand-950: oklch(0.245 0.09 250.485);
 
   --font-ipix: "IPix", sans-serif;
-  --font-foglihtenno: "Foglihtenno", serif;
-  --font-hyxyuan: "HYXYuan", sans-serif;
-  --font-hyyisong: "HYYiSong", serif;
 }
 
 @layer utilities {
@@ -25,21 +22,6 @@
   @font-face {
     font-family: 'IPix';
     src: url('./assets/fonts/ipix.ttf') format('truetype');
-  }
-
-  @font-face {
-    font-family: 'Foglihtenno';
-    src: url('./assets/fonts/foglihtenno.otf') format('opentype');
-  }
-
-  @font-face {
-    font-family: 'HYXYuan';
-    src: url('./assets/fonts/hyxyuan.ttf') format('truetype');
-  }
-
-  @font-face {
-    font-family: 'HYYiSong';
-    src: url('./assets/fonts/hyyisong.ttf') format('truetype');
   }
 
   .doodle-svg * {

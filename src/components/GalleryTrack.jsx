@@ -66,8 +66,17 @@ const GalleryTrack = () => {
         })
     });
 
+    // Mobile Check
+    const isMobile = useMedia('(max-width: 768px)');
+
+    // Mobile Overrides
+    const effectiveFgScale = isMobile ? 0.5 : fgScale;
+    const effectiveCrowdScale = isMobile ? 0.2 : crowdScale;
+    const effectiveFgBottom = isMobile ? -10 : fgBottom;
+    const effectiveArtworkGap = isMobile ? 150 : artworkGap;
+
     // 2. MEASUREMENT
-    const { contentWidth, irisRadius } = useGalleryMeasurement(containerRef);
+    const { contentWidth, irisRadius, loopWidth, startOffset } = useGalleryMeasurement(containerRef);
 
     // 3. SCROLL LOGIC
     const {
@@ -78,6 +87,8 @@ const GalleryTrack = () => {
         setTargetProgress
     } = useGalleryScroll({
         contentWidth,
+        loopWidth, // Pass loop width for infinite scroll
+        startOffset, // Pass start offset for buffer
         bgParallax: 0.5,
         autoScrollSpeed,
         acceleration,
@@ -89,7 +100,9 @@ const GalleryTrack = () => {
         spacerWidth,
         galleryDataLength: galleryData.length,
         crowdParallax,
-        fgParallax
+        fgParallax,
+        loopWidth,
+        bgParallax: 0.5
     });
 
     // 5. TRANSFORMS
@@ -103,7 +116,12 @@ const GalleryTrack = () => {
 
     // Manually calculate progress to ensure it is 0 at start
     const maxScrollDist = Math.max(1, spacerWidth - window.innerWidth);
-    const manualProgress = useTransform(scrollX, [0, maxScrollDist], [0, 1], { clamp: true });
+
+    // For Loop: We want progress to be 1.0 exactly at the Loop Point.
+    const loopDist = loopWidth > 0 ? loopWidth / (1 - bgParallax) : maxScrollDist;
+    const scrollStart = startOffset > 0 ? startOffset / (1 - bgParallax) : 0;
+
+    const manualProgress = useTransform(scrollX, [scrollStart, scrollStart + loopDist], [0, 1]);
 
     // 6. TIMELINE LOGIC
     // Calculate discrete markers for years
@@ -114,19 +132,20 @@ const GalleryTrack = () => {
         const addedYears = new Set();
         const screenPadding = window.innerWidth * 0.2; // Match the padding used in scroll logic
 
-        // We need to access the DOM elements to measure them?
-        // Since this runs during render/effect, we might not have accurate DOM positions yet if loading.
-        // However, we can approximate or use a layout effect.
-        // For simplicity's sake in this pass, we will iterate the DOM if available, 
-        // or effectively we have to rely on `renderItems` index. But DOM is best.
         // 1. YEAR MARKERS (Banners)
         const allBanners = Array.from(document.querySelectorAll('[id^="banner-"]'));
         allBanners.forEach(banner => {
             const year = banner.id.replace('banner-', '');
             if (!addedYears.has(year)) {
-                const elementLeft = banner.offsetLeft;
-                const targetScroll = Math.max(0, (elementLeft - screenPadding) * 2);
-                const progress = Math.min(1, Math.max(0, targetScroll / maxScrollDist));
+                // Determine layout position relative to "Start Marker"
+                // The Banner is inside the transformed container.
+                // startOffset is the left position of the Start Marker in that same container.
+                const relativeLeft = banner.offsetLeft - startOffset;
+
+                // Adjust for screen padding (centering logic) if needed, 
+                // but simpler is: how far into the loop is this?
+                // Progress = relativeLeft / loopWidth.
+                const progress = Math.min(1, Math.max(0, (relativeLeft - screenPadding) / loopWidth));
 
                 markers.push({ type: 'year', label: year, progress, id: year });
                 addedYears.add(year);
@@ -138,20 +157,18 @@ const GalleryTrack = () => {
         allVideos.forEach(video => {
             // ID format: video-marker-{id}
             const itemId = video.id.replace('video-marker-', '');
-            // Find the item data to get the custom label
             const itemData = galleryData.find(item => item.id === itemId);
             const label = itemData?.timelineLabel || 'Play';
 
-            const elementLeft = video.offsetLeft;
-            const targetScroll = Math.max(0, (elementLeft - screenPadding) * 2);
-            const progress = Math.min(1, Math.max(0, targetScroll / maxScrollDist));
+            const relativeLeft = video.offsetLeft - startOffset;
+            const progress = Math.min(1, Math.max(0, (relativeLeft - screenPadding) / loopWidth));
 
             markers.push({ type: 'video', label: label, progress, id: video.id });
         });
 
         // Sort by progress
         return markers.sort((a, b) => a.progress - b.progress);
-    }, [galleryData, spacerWidth, maxScrollDist, contentWidth]); // Recalculate if geometry changes
+    }, [galleryData, spacerWidth, loopWidth, startOffset, contentWidth]); // Recalculate if geometry changes
 
 
     const handleMarkerSelect = (marker) => {
@@ -219,13 +236,53 @@ const GalleryTrack = () => {
                             className={`relative z-10 flex items-center h-full transition-opacity duration-300 pointer-events-auto`}
                             ref={containerRef}
                         >
+                            {/* --- PRE-BUFFER CLONES (Reverse Loop) --- */}
+                            {renderItems.slice(-5).map((item) => {
+                                const margin = effectiveArtworkGap;
+                                const cloneKey = `pre-clone-${item.type === 'artwork' ? item.data.id : item.id}`;
+
+                                if (item.type === 'banner') {
+                                    return (
+                                        <div
+                                            key={cloneKey}
+                                            className="flex-shrink-0 flex items-center justify-center"
+                                            style={{
+                                                height: '350px',
+                                                marginLeft: `${effectiveArtworkGap * 0.5}px`,
+                                                marginRight: `${margin}px`
+                                            }}
+                                        >
+                                            <div className="h-full flex items-center justify-center select-none bg-white border-2 border-black" style={{ padding: '0 50px' }}>
+                                                <span className="text-[250px] font-sans font-medium text-black tracking-tighter leading-none">
+                                                    {item.year}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                } else {
+                                    return (
+                                        <div key={cloneKey} className="flex-shrink-0">
+                                            <ArtFrame
+                                                item={item.data}
+                                                index={item.index}
+                                                style={{ marginRight: `${margin}px` }}
+                                                onToggleLightbox={setIsLightboxOpen}
+                                            />
+                                        </div>
+                                    );
+                                }
+                            })}
+
+                            {/* Marker for Start of Real Content */}
+                            <div id="gallery-start-marker" className="flex-shrink-0" style={{ width: '1px', opacity: 0 }} />
+
                             {/* Door Doodle - Start of Gallery */}
                             <div
                                 className="flex-shrink-0 bg-black rounded-t-full self-end"
                                 style={{
                                     width: '250px',
                                     height: '350px',
-                                    marginRight: `${artworkGap}px`
+                                    marginRight: `${effectiveArtworkGap}px`
                                 }}
                             />
 
@@ -233,7 +290,7 @@ const GalleryTrack = () => {
 
                                 // Note: item.index is unstable for banners, but render logic handles it.
                                 // Actually simplistic margin specific to item type is better.
-                                const margin = artworkGap;
+                                const margin = effectiveArtworkGap;
 
                                 if (item.type === 'banner') {
                                     return (
@@ -243,7 +300,7 @@ const GalleryTrack = () => {
                                             className="flex-shrink-0 flex items-center justify-center"
                                             style={{
                                                 height: '350px',
-                                                marginLeft: `${artworkGap * 0.5}px`, // slight offset
+                                                marginLeft: `${effectiveArtworkGap * 0.5}px`, // slight offset
                                                 marginRight: `${margin}px`
                                             }}
                                         >
@@ -284,6 +341,59 @@ const GalleryTrack = () => {
                                     );
                                 }
                             })}
+
+                            {/* --- INFINITE LOOP CLONES --- */}
+                            {/* Marker to detect end of unique content */}
+                            <div id="gallery-loop-marker" className="flex-shrink-0" style={{ width: '1px', opacity: 0 }} />
+
+                            {/* 1. Clone Door */}
+                            <div
+                                className="flex-shrink-0 bg-black rounded-t-full self-end"
+                                style={{
+                                    width: '250px',
+                                    height: '350px',
+                                    marginRight: `${effectiveArtworkGap}px`
+                                }}
+                            />
+
+                            {/* 2. Clone Items (First few items repeated) */}
+                            {renderItems.slice(0, 5).map((item) => {
+                                const margin = effectiveArtworkGap;
+                                const cloneKey = `clone-${item.type === 'artwork' ? item.data.id : item.id}`;
+
+                                if (item.type === 'banner') {
+                                    return (
+                                        <div
+                                            key={cloneKey}
+                                            className="flex-shrink-0 flex items-center justify-center"
+                                            style={{
+                                                height: '350px',
+                                                marginLeft: `${effectiveArtworkGap * 0.5}px`,
+                                                marginRight: `${margin}px`
+                                            }}
+                                        >
+                                            <div className="h-full flex items-center justify-center select-none bg-white border-2 border-black" style={{ padding: '0 50px' }}>
+                                                <span className="text-[250px] font-sans font-medium text-black tracking-tighter leading-none">
+                                                    {item.year}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                } else {
+                                    return (
+                                        <div key={cloneKey} className="flex-shrink-0">
+                                            <ArtFrame
+                                                item={item.data}
+                                                index={item.index}
+                                                style={{ marginRight: `${margin}px` }}
+                                                // Disable lightbox for clones to avoid complex state sync, or keep it if easy
+                                                onToggleLightbox={setIsLightboxOpen}
+                                            />
+                                        </div>
+                                    );
+                                }
+                            })}
+
                         </div>
                     </motion.div>
                 )}
@@ -333,11 +443,11 @@ const GalleryTrack = () => {
                                 className="absolute bottom-0"
                                 style={{
                                     left: `${doodle.left}px`,
-                                    width: `${doodle.baseWidth * crowdScale}px`,
+                                    width: `${doodle.baseWidth * effectiveCrowdScale}px`,
                                     transform: `rotate(${doodle.rotation}deg) scaleX(${doodle.scaleX})`,
                                     transformOrigin: 'bottom center',
                                     contentVisibility: 'auto',
-                                    containIntrinsicSize: `${doodle.baseWidth * crowdScale}px 200px`,
+                                    containIntrinsicSize: `${doodle.baseWidth * effectiveCrowdScale}px 200px`,
                                 }}
                             >
                                 <doodle.Component
@@ -369,10 +479,10 @@ const GalleryTrack = () => {
                                 className="absolute bottom-0"
                                 style={{
                                     left: `${doodle.left}px`,
-                                    width: `${doodle.baseWidth * fgScale}px`,
+                                    width: `${doodle.baseWidth * effectiveFgScale}px`,
                                     transform: `rotate(${doodle.rotation}deg) scaleX(${doodle.scaleX})`,
                                     transformOrigin: 'bottom center',
-                                    marginBottom: `${fgBottom}%`,
+                                    marginBottom: `${effectiveFgBottom}%`,
                                     contentVisibility: 'auto',
                                     containIntrinsicSize: `${doodle.baseWidth * fgScale}px 400px`,
                                 }}

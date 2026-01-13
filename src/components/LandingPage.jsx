@@ -1,27 +1,34 @@
 import { useRef, useEffect, useState } from 'react';
-import { motion, AnimatePresence, useMotionValue, useSpring, useMotionTemplate } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 import clsx from 'clsx';
 // Import Title SVG and Video
 import TitleSvg from '../assets/cover/Title.svg?react';
 import coverVideo from '../assets/cover/cover.mp4';
 import BlackDoor from '../assets/cover/blackdoor.svg?react';
+import SmokingCharacter from './SmokingCharacter';
 
 // Reusable Content Component to ensure perfect alignment between layers
-const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDoorHover }) => {
-    const [isDoorHovered, setIsDoorHovered] = useState(false);
+const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDoorHover, isDoorHovered }) => {
+    const doorRef = useRef(null);
+
+    const handleClick = () => {
+        if (doorRef.current) {
+            onEnter(doorRef.current.getBoundingClientRect());
+        }
+    };
 
     return (
         <div className={clsx(
-            "flex flex-col items-center gap-12 max-w-4xl px-8 text-center transition-colors duration-0",
+            "flex flex-col items-center gap-8 md:gap-16 max-w-4xl px-8 text-center transition-colors duration-0",
             isBackground ? "text-white" : "text-stone-900"
         )}>
             {/* Main Title Group */}
             <div className={clsx(
-                "space-y-8 flex flex-col items-center",
+                "flex flex-col items-center",
                 isBackground && "opacity-0"
             )}>
                 <div className={clsx(
-                    "relative w-full max-w-[90vw] md:max-w-[660px] transition-colors duration-0",
+                    "relative w-full max-w-[90vw] md:max-w-[720px] transition-colors duration-0",
                     isBackground ? "text-white" : "text-stone-900"
                 )}>
                     {/* Video in the "口" hole */}
@@ -47,174 +54,97 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
                     {/* SVG Title on top */}
                     <TitleSvg className="relative z-10 w-full h-auto" />
                 </div>
-
-                <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 font-mono text-xs md:text-sm uppercase tracking-widest">
-                    <span>Marco's Secret Life In SF</span>
-                    <span className="hidden md:inline">•</span>
-                    <span>2021—2025.12</span>
-                </div>
             </div>
 
-            {/* Enter Button / Door */}
-            <div className="relative cursor-pointer group" onClick={onEnter}>
-                {/* Use motion for scaling the door on click */}
-                <motion.div
-                    whileHover={{ scale: 1.5 }}
-                    whileTap={{ scale: 0.95 }}
-                    onHoverStart={() => {
-                        onDoorHover?.(true);
-                        setIsDoorHovered(true);
-                    }}
-                    onHoverEnd={() => {
-                        onDoorHover?.(false);
-                        setIsDoorHovered(false);
-                    }}
-                    layoutId="door-transition"
-                >
+            {/* Enter Button / Door Group */}
+            <div className="relative cursor-pointer group mt-4 md:mt-8" onClick={handleClick}>
+
+                {/* Door + Character Container */}
+                <div className="relative">
+                    {/* Door */}
+                    <motion.div
+                        ref={doorRef}
+                        style={{ transformOrigin: '50% 100%' }}
+                        animate={{ scale: isDoorHovered ? 1.25 : 1 }}
+                        onHoverStart={() => {
+                            onDoorHover?.(true);
+                        }}
+                        onHoverEnd={() => {
+                            onDoorHover?.(false);
+                        }}
+                        className="relative z-10 origin-bottom"
+                    >
+                        <div className={clsx(
+                            "w-[120px] md:w-40 h-auto transition-colors duration-300 relative",
+                            isBackground ? "text-white" : "text-stone-900"
+                        )}>
+                            <BlackDoor className="w-full h-full fill-current" />
+
+                            {/* Pulsing Entry Text */}
+                            <AnimatePresence>
+                                {!isZooming && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={isDoorHovered ? { opacity: 1 } : { opacity: [0, 1, 0] }}
+                                        exit={{ opacity: 0 }}
+                                        transition={isDoorHovered ? { duration: 0.2 } : {
+                                            duration: 2,
+                                            repeat: Infinity,
+                                            ease: "easeInOut",
+                                            repeatDelay: 1
+                                        }}
+                                        className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                                    >
+                                        <div className="text-[10px] md:text-[32px] font-ipix tracking-widest text-[#fdfaf6] mb-0.5">进入</div>
+                                        <div className="text-[8px] md:text-[12px] font-ipix tracking-widest text-[#fdfaf6] uppercase">Enter</div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+
+                    {/* Smoking Man (Right side - Absolute) */}
                     <div className={clsx(
-                        "w-12 md:w-16 h-auto transition-colors duration-300 relative",
+                        "absolute left-[85%] bottom-0 ml-[-12px] w-24 md:w-[260px] h-auto mb-1 pointer-events-none z-50",
                         isBackground ? "text-white" : "text-stone-900"
                     )}>
-                        {/* Scale the SVG itself? Or wrapper. SVG path is black/currentcolor? */}
-                        {/* The original SVG is fill="black" stroke="black". Check if we need to style it. */}
-                        {/* We need it to be white in BG mod? */}
-                        {/* Actually, if it's blackdoor, maybe it should always be black? */}
-                        {/* But visually, if BG is black, a black door is invisible.
-                             However, user said "BlackDoor" specifically.
-                             In the reference img 1, it seems to be below the text.
-                             If the user wants "enter door", maybe it stays black.
-                             BUT in the hole (BG layer), the BG is black.
-                             So we might need it white there? Or maybe just rely on Foreground.
-                             Let's assume standard invert behavior: White in BG layer. */}
-                        <BlackDoor className="w-full h-full fill-current" />
-
-                        {/* Pulsing Entry Text */}
-                        <AnimatePresence>
-                            {!isZooming && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={isDoorHovered ? { opacity: 1 } : { opacity: [0, 1, 0] }}
-                                    exit={{ opacity: 0 }}
-                                    transition={isDoorHovered ? { duration: 0.2 } : {
-                                        duration: 2,
-                                        repeat: Infinity,
-                                        ease: "easeInOut"
-                                    }}
-                                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none whitespace-nowrap"
-                                >
-                                    <span className={clsx("text-[12px] md:text-[18px] font-hyxyuan text-white leading-none mb-[2px]")}>
-                                        进入
-                                    </span>
-                                    <span className={clsx("text-[8px] md:text-[10px] font-ipix text-white leading-none")}>
-                                        ENTER
-                                    </span>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        <SmokingCharacter
+                            className="w-full h-full text-current"
+                            style={isBackground ? { filter: 'invert(1)' } : undefined}
+                        />
                     </div>
-                </motion.div>
+                </div>
+
             </div>
 
-            {/* Decorative elements only visible on Foreground usually, but we want full invert?
-            Let's keep corners on both to match. */}
-            <div className="absolute top-8 left-8 font-mono text-xs opacity-40 text-left">
-                LAT: 37.7749° N <br />
-                LON: 122.4194° W
-            </div>
-            <div className="absolute bottom-8 right-8 font-mono text-xs opacity-40 text-right">
-                SYSTEM: ONLINE <br />
-                V.2.0.24
+            {/* Bottom Text Group */}
+            <div className={clsx(
+                "flex flex-col items-center justify-center gap-1 md:gap-4 mt-4 font-ipix uppercase tracking-widest z-10 relative",
+                isBackground && "opacity-0"
+            )}>
+                <span className="text-sm md:text-xl font-medium">Marco's Secret Life In SF</span>
+                <span className="text-3xl md:text-5xl font-light tracking-wider">2021—2025.12</span>
             </div>
         </div>
     );
 };
 
-// Data for the background tags
-const TAGS = [
-    { text: "SFBestEggFriedRice", style: "font-ipix text-lg md:text-3xl" },
-    { text: "🎾 网球5.0教练", style: "font-hyxyuan" },
-    { text: "猴歡喜", style: "font-hyyisong" },
-    { text: "AWARD-WINNING\nTRANS ACTOR", style: "font-foglihtenno text-xl md:text-3xl leading-tight" },
-    { text: "江門古天樂", style: "font-hyxyuan" },
-    { text: "PICKLEBALL\nAMBASSADOR", style: "font-foglihtenno text-xl md:text-3xl leading-tight" },
-    { text: "冰皮月饼师傅", style: "font-hyyisong" },
-    { text: "小动物检查身体专家", style: "font-ipix text-lg md:text-3xl" },
-    { text: "連續戒烟成功者", style: "font-hyxyuan" },
-    { text: "399HonoraryResident", style: "font-foglihtenno" },
-    { text: "吉尼斯連續吃西瓜記錄保持者", style: "font-ipix text-lg md:text-3xl" },
-    { text: "求佛演唱家", style: "font-hyyisong" },
-    { text: "華埠老廣地陪", style: "font-hyxyuan" },
-    { text: "NA TOP50 LILIA", style: "font-ipix text-2xl md:text-5xl font-bold" },
-    { text: "來根小烟", style: "font-hyyisong" },
-    { text: "ARKVELD 100+", style: "font-foglihtenno" },
-    { text: "不用驾照的司机", style: "font-ipix text-lg md:text-3xl" },
-    { text: "A-DESIGN AWARD", style: "font-foglihtenno" }
+// New Data Structure for Lines
+const TAG_LINES = [
+    ["SF Best Egg-Fried-Rice Chef", "🎾 网球5.0教练", "猴子们的好朋友"],
+    ["AWARD-WINNING TRANS ACTOR", "江門古天樂"],
+    ["PICKLEBALL AMBASSADOR", "冰皮月饼师傅"],
+    ["小动物检查身体专家", "連續戒烟成功者"],
+    ["399HonoraryResident", "吉尼斯連續吃西瓜記錄保持者"],
+    ["求佛演唱家", "華埠老廣地陪"],
+    ["NA TOP50 LILIA"],
+    ["ARKVELD 100+", "A-DESIGN AWARD"]
 ];
 
 const LandingPage = ({ onEnter }) => {
     const containerRef = useRef(null);
 
-
-    // Bouncing Ball State
-    // We use motion values for performance (no React rerenders for position updates)
-    const ballX = useMotionValue(typeof window !== 'undefined' ? window.innerWidth / 2 : 0);
-    const ballY = useMotionValue(-100);
-
-    useEffect(() => {
-        let animationFrameId;
-
-        // Physics state (local mutable variables are fine for this loop)
-        let x = window.innerWidth / 2;
-        let y = -100;
-        let vx = (Math.random() - 0.5) * 15; // Random horizontal start speed
-        let vy = 0;
-        const radius = 60; // Ball radius matching visual size
-        const gravity = 0.5;
-        const friction = 0.999; // Very low air resistance
-        const bounceDamping = 0.8; // Loss of energy on wall hit
-
-        const updateBall = () => {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-
-            // Physics
-            vy += gravity;
-            vx *= friction;
-
-            x += vx;
-            y += vy;
-
-            // Wall Collisions
-            if (x + radius > width) {
-                x = width - radius;
-                vx *= -bounceDamping;
-            } else if (x - radius < 0) {
-                x = radius;
-                vx *= -bounceDamping;
-            }
-
-            // Floor Collision
-            if (y + radius > height) {
-                y = height - radius;
-                vy *= -bounceDamping;
-
-                // Prevent micro-bouncing when near stop
-                if (Math.abs(vy) < 1 && y > height - radius - 5) vy = 0;
-            }
-
-            // Update Motion Values
-            ballX.set(x);
-            ballY.set(y);
-
-            animationFrameId = requestAnimationFrame(updateBall);
-        };
-
-        animationFrameId = requestAnimationFrame(updateBall);
-        return () => cancelAnimationFrame(animationFrameId);
-    }, []);
-
     // Motion values for mouse position - Start at center
-    // We use a safe default, will correct in useEffect if needed, but 50vw/50vh is good approx
     const mouseX = useMotionValue(typeof window !== 'undefined' ? window.innerWidth / 2 : 0);
     const mouseY = useMotionValue(typeof window !== 'undefined' ? window.innerHeight / 2 : 0);
 
@@ -223,13 +153,8 @@ const LandingPage = ({ onEnter }) => {
     const smoothRadius = useSpring(maskRadius, { damping: 20, stiffness: 150 });
 
     // Smooth springs for the mask position
-    // We want the ball to drop to the center, so we lock these to center initially
     const smoothX = useSpring(mouseX, { damping: 20, stiffness: 150 });
     const smoothY = useSpring(mouseY, { damping: 20, stiffness: 150 });
-
-
-
-
 
     useEffect(() => {
         // Ensure we start at true center
@@ -249,14 +174,13 @@ const LandingPage = ({ onEnter }) => {
         mouseY.set(y);
     };
 
-
-
     const [isZooming, setIsZooming] = useState(false);
     const [doorRect, setDoorRect] = useState(null);
+    const [isGlobalDoorHovered, setIsGlobalDoorHovered] = useState(false);
 
-    const handleEnter = (e) => {
-        if (e?.currentTarget) {
-            setDoorRect(e.currentTarget.getBoundingClientRect());
+    const handleEnter = (rect) => {
+        if (rect) {
+            setDoorRect(rect);
         }
         setIsZooming(true);
         setTimeout(() => {
@@ -265,10 +189,9 @@ const LandingPage = ({ onEnter }) => {
     };
 
     const handleDoorHover = (isHovering) => {
-        maskRadius.set(isHovering ? 100 : 250);
+        maskRadius.set(isHovering ? 50 : 250);
+        setIsGlobalDoorHovered(isHovering);
     };
-
-
 
     return (
         <div
@@ -277,18 +200,10 @@ const LandingPage = ({ onEnter }) => {
             className="relative w-full h-screen overflow-hidden bg-black"
         >
             {/* SVG Mask Definition */}
-            {/* The SVG must occupy full screen to provide correct coordinate context for the mask. */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
                 <defs>
                     <mask id="rain-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%">
                         <rect x="0" y="0" width="100%" height="100%" fill="white" />
-                        {/* Bouncing Ball Cutout */}
-                        <motion.circle
-                            cx={ballX}
-                            cy={ballY}
-                            r={60}
-                            fill="black"
-                        />
                         {/* Cursor Cutout */}
                         <motion.circle
                             cx={smoothX}
@@ -299,47 +214,71 @@ const LandingPage = ({ onEnter }) => {
                     </mask>
                 </defs>
             </svg>
+
             {/* Background Layer (Revealed by Hole - Interactable) */}
             <div className="absolute inset-0 z-0 flex flex-col items-center justify-center bg-black text-white select-none overflow-hidden p-2 md:p-8">
-                {/* Tag Cloud Container */}
-                <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-2 md:gap-4 w-full h-full content-center opacity-100 z-0 pointer-events-none">
-                    {[...TAGS, ...TAGS, ...TAGS, ...TAGS].map((tag, i) => (
-                        <div
-                            key={i}
-                            className={clsx(
-                                "flex items-center justify-center px-6 border border-white rounded-full text-center cursor-default",
-                                "h-12 md:h-24", // Enforce consistent height
-                                tag.style ? tag.style : "text-3xl md:text-5xl font-light"
-                            )}
-                        >
-                            <span className="whitespace-pre-wrap">{tag.text}</span>
-                        </div>
-                    ))}
+
+                {/* Background Text Lines (Circular Clock Style) */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-75 z-0 pointer-events-none font-ipix w-full h-full">
+                    {TAG_LINES.flat().map((text, i, arr) => {
+                        const count = arr.length;
+                        // Start from -90deg (12 o'clock)
+                        const angle = (i / count) * 2 * Math.PI - (Math.PI / 2);
+                        // Radius based on viewport width/height (responsive)
+                        // defined in CSS or inline style? 
+                        // Using a fixed radius percentage logic for now. 
+                        // We can use style vars or just calc.
+
+                        // Assign random colors based on index for deterministic look
+                        const colors = [
+                            'bg-[#ff9cee] text-black', // Pink
+                            'bg-[#4ade80] text-black', // Green
+                            'bg-[#d6d3d1] text-black', // Grey
+                            'bg-white text-black'      // White
+                        ];
+                        const colorClass = colors[i % colors.length];
+
+                        // Random rotation for "collage" feel? Reference has mostly straight text.
+                        // Let's keep it straight for now or slight jitter.
+
+                        return (
+                            <div
+                                key={i}
+                                className={clsx(
+                                    "absolute whitespace-nowrap px-2 py-1 text-sm md:text-xl uppercase tracking-widest",
+                                    colorClass
+                                )}
+                                style={{
+                                    left: '50%',
+                                    top: '50%',
+                                    transform: `translate(-50%, -50%) translate(${Math.cos(angle) * 35}vmin, ${Math.sin(angle) * 35}vmin)`
+                                }}
+                            >
+                                {text}
+                            </div>
+                        );
+                    })}
                 </div>
+
 
                 {/* Inverted Content (Visible in Hole) - Now Interactable */}
                 <div className="relative z-10">
-                    <LandingContent isBackground={true} onEnter={handleEnter} isZooming={isZooming} onDoorHover={handleDoorHover} />
+                    <LandingContent isBackground={true} onEnter={handleEnter} isZooming={isZooming} onDoorHover={handleDoorHover} isDoorHovered={isGlobalDoorHovered} />
                 </div>
             </div>
 
-
-
-
-            {/* Foreground Layer (Hides BG) - Pointer events disabled so we interact with BG through the hole */}
+            {/* Foreground Layer (Hides BG) */}
             <motion.div
-                className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#fdfaf6] pointer-events-none"
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white pointer-events-none p-2 md:p-8"
                 style={{
                     mask: 'url(#rain-mask)',
                     WebkitMask: 'url(#rain-mask)'
                 }}
             >
                 <div className="relative z-10">
-                    <LandingContent isBackground={false} onEnter={handleEnter} isZooming={isZooming} />
+                    <LandingContent isBackground={false} onEnter={handleEnter} isZooming={isZooming} isDoorHovered={isGlobalDoorHovered} />
                 </div>
             </motion.div>
-
-
 
             {/* Transition Door Overlay */}
             <AnimatePresence>

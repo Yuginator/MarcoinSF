@@ -35,7 +35,11 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
         });
     }, []);
 
-    const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+    const [currentTrackIndex, setCurrentTrackIndex] = useState(() => {
+        const keys = Object.keys(bgmModules);
+        const defaultIndex = keys.findIndex(key => key.includes('Under FujiMt'));
+        return defaultIndex !== -1 ? defaultIndex : 0;
+    });
 
     // 2. AUDIO LOGIC
     useEffect(() => {
@@ -60,7 +64,9 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
         if (audioRef.current.src !== track.url && !audioRef.current.src.endsWith(track.url)) {
             audioRef.current.src = track.url;
             if (wasPlaying || isPlaying) {
-                audioRef.current.play().catch(e => console.error("Play failed:", e));
+                audioRef.current.play().catch(e => {
+                    if (e.name !== 'AbortError') console.error("Play failed:", e);
+                });
             }
         }
     }, [currentTrackIndex, playlist, isPlaying]);
@@ -77,7 +83,9 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
             audioRef.current.pause();
         } else {
             if (isPlaying) {
-                audioRef.current.play().catch(e => console.error("Resume failed", e));
+                audioRef.current.play().catch(e => {
+                    if (e.name !== 'AbortError') console.error("Resume failed", e);
+                });
             }
         }
     }, [isLightboxOpen, isPlaying]);
@@ -107,7 +115,9 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
             audioRef.current.pause();
             setIsPlaying(false);
         } else {
-            audioRef.current.play().catch(e => console.error("Play failed", e));
+            audioRef.current.play().catch(e => {
+                if (e.name !== 'AbortError') console.error("Play failed", e);
+            });
             setIsPlaying(true);
         }
     };
