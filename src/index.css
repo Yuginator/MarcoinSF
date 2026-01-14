@@ -30,6 +30,12 @@
     /* Enforce uniform thickness */
   }
 
+  @media (max-width: 768px) {
+    .doodle-svg * {
+      stroke-width: 1.5px;
+    }
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
     display: none;

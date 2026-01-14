@@ -129,7 +129,7 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
         <div className="fixed top-0 left-0 z-[60] flex flex-col items-start font-mono">
             {/* Speaker Doodle */}
             <div
-                className="relative w-60 cursor-pointer transition-transform hover:scale-105 active:scale-95 origin-top-left"
+                className="relative w-40 md:w-60 ml-3 cursor-pointer transition-transform hover:scale-105 active:scale-95 origin-top-left"
                 onClick={() => setShowControls(prev => !prev)}
             >
                 <CurrentSpeaker className="w-full h-auto drop-shadow-lg" />
@@ -142,7 +142,7 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
                         initial={{ opacity: 0, y: -20, scale: 0.9 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                        className="mt-4 bg-white/90 backdrop-blur-sm border-2 border-black p-4 rounded-lg shadow-xl w-64 flex flex-col gap-4 text-xs"
+                        className="mt-4 ml-5 bg-white/90 backdrop-blur-sm border-2 border-black p-4 rounded-lg shadow-xl w-64 flex flex-col gap-4 text-xs"
                     >
                         {/* Status Header */}
                         <div className="flex justify-between items-center border-b border-black/10 pb-2">

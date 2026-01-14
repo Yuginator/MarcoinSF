@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import coverVideo from '../assets/cover/cover.mp4';
+import coverImg from '../assets/cover/cover.jpeg';
 import frameSrc from '../assets/frameBorders/frame.svg?url';
 
 const Preloader = ({ onComplete }) => {
     // We only need to wait for:
     // 1. IPIX Font
-    // 2. Cover Video (optional but good)
+    // 2. Cover Image
     const [progress, setProgress] = useState(0);
 
     useEffect(() => {
@@ -22,15 +22,12 @@ const Preloader = ({ onComplete }) => {
             if (!isMounted) return;
             setProgress(50);
 
-            // 2. Preload Video (Head request or short buffer)
-            // Since it's an import, the browser is likely already aware, 
-            // but we can force a fetch to ensure cache.
-            const vidReq = new Promise((resolve) => {
-                const video = document.createElement('video');
-                video.onloadeddata = () => resolve();
-                video.onerror = () => resolve(); // Proceed even if fail
-                video.src = coverVideo;
-                video.load();
+            // 2. Preload Cover Image
+            const imgReq = new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+                img.src = coverImg;
             });
 
             // 3. Preload Frame SVG (for Gallery) - Optional but helpful
@@ -41,7 +38,7 @@ const Preloader = ({ onComplete }) => {
                 img.src = frameSrc;
             });
 
-            await Promise.all([vidReq, frameReq]);
+            await Promise.all([imgReq, frameReq]);
 
             if (!isMounted) return;
             setProgress(100);

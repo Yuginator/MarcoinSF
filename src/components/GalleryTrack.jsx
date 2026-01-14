@@ -70,8 +70,12 @@ const GalleryTrack = () => {
     const isMobile = useMedia('(max-width: 768px)');
 
     // Mobile Overrides
-    const effectiveFgScale = isMobile ? 0.5 : fgScale;
+    // Target Mobile Sizes: FG ~0.4, Crowd ~0.2
+
+    // User requested specific mobile scales
+    const effectiveFgScale = isMobile ? 0.4 : fgScale;
     const effectiveCrowdScale = isMobile ? 0.2 : crowdScale;
+
     const effectiveFgBottom = isMobile ? -10 : fgBottom;
     const effectiveArtworkGap = isMobile ? 150 : artworkGap;
 
@@ -158,7 +162,8 @@ const GalleryTrack = () => {
             // ID format: video-marker-{id}
             const itemId = video.id.replace('video-marker-', '');
             const itemData = galleryData.find(item => item.id === itemId);
-            const label = itemData?.timelineLabel || 'Play';
+            const item = galleryData.find(i => i.id === itemId);
+            const label = item?.timelineLabel || 'Play';
 
             const relativeLeft = video.offsetLeft - startOffset;
             const progress = Math.min(1, Math.max(0, (relativeLeft - screenPadding) / loopWidth));
@@ -229,7 +234,7 @@ const GalleryTrack = () => {
                 {/* 2. Artworks (Content) */}
                 {showArtworks && (
                     <motion.div
-                        className="absolute top-0 left-0 w-max h-full flex pb-[30vh] z-10 box-border pl-[20vw]"
+                        className="absolute top-0 left-0 w-max h-full flex pb-[30vh] z-10 box-border pl-[20vw] will-change-transform"
                         style={{ x: xArtworks }}
                     >
                         <div
@@ -430,7 +435,7 @@ const GalleryTrack = () => {
                 {/* 3.2. Crowd Characters */}
                 {showCrowd && (
                     <motion.div
-                        className="absolute bottom-0 left-0 w-full h-full z-[15]"
+                        className="absolute bottom-0 left-0 w-full h-full z-[15] will-change-transform"
                         style={{
                             x: xCrowd,
                             height: '50vh',
@@ -462,7 +467,7 @@ const GalleryTrack = () => {
                 {/* 3.5. Walking Character (Fixed Center) */}
                 <div className="fixed inset-0 z-[18] pointer-events-none flex items-end justify-center pb-[10vh]">
                     <WalkingCharacter
-                        className="w-[320px] h-[320px] drop-shadow-lg"
+                        className="w-[240px] h-[240px] md:w-[320px] md:h-[320px] md:drop-shadow-lg"
                         stride={stride}
                     />
                 </div>
@@ -470,7 +475,7 @@ const GalleryTrack = () => {
                 {/* 4. Foreground */}
                 {showForeground && (
                     <motion.div
-                        className="absolute bottom-0 left-0 w-full h-full z-20"
+                        className="absolute bottom-0 left-0 w-full h-full z-20 will-change-transform"
                         style={{ x: xFg, height: '60vh' }}
                     >
                         {foregroundDoodles.map((doodle, i) => (

@@ -15,13 +15,37 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
     const [isLoaded, setIsLoaded] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
+    // 0. CONSTANTS & CALCULATIONS (Move to top)
+    // Calculate random scale (0.8 to 1.0) deterministically based on ID
+    const randomScale = useMemo(() => {
+        if (!item.id) return 1;
+        const seed = String(item.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        // % 21 gives 0-20. /100 gives 0.00-0.20. Result: 0.80 to 1.00.
+        return 0.8 + ((seed % 21) / 100);
+    }, [item.id]);
+
+    const finalHeight = 45 * randomScale;
+
+    const unloadMedia = (videoElement) => {
+        if (!videoElement) return;
+        // Pause and reset
+        videoElement.pause();
+        videoElement.removeAttribute('src');
+        videoElement.load();
+    };
+
+
+    // 1. INTERSECTION OBSERVER
     // Only check intersection for videos to save resources
     // Performance: Increased threshold to 0.5 (50% visibility) to prevents
     // too many videos from loading/playing at once.
+    // UPDATE: User requested "load slightly before, unload slightly after".
+    // Changing logic to a larger buffer (600px) and 0 threshold.
+    // Also applying to ALL media (images too) for memory management.
     const intersection = useIntersection(mainRef, {
         root: null,
-        rootMargin: '200px',
-        threshold: 0.5,
+        rootMargin: '600px', // Load when within 600px (approx 30-50vw)
+        threshold: 0,        // Trigger as soon as it touches the buffer
     });
 
     // 2. Focus Detection (Center of Screen)
@@ -34,6 +58,23 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
 
     const isFocused = focusIntersection && focusIntersection.isIntersecting;
 
+    // 3. EFFECTS
+
+    // Media Loading/Unloading
+    useEffect(() => {
+        const isIntersecting = intersection && intersection.isIntersecting;
+
+        if (isIntersecting) {
+            setIsLoaded(true);
+        } else {
+            // Cleanup BEFORE unmounting/hiding
+            if (videoRef.current) {
+                unloadMedia(videoRef.current);
+            }
+            setIsLoaded(false);
+        }
+    }, [intersection, item.type]);
+
     // DEBUG: Track focused item
     useEffect(() => {
         if (isFocused) {
@@ -41,7 +82,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
         }
     }, [isFocused, item.id]);
 
-    // 3. Focus Mode Playback
+    // Focus Mode Playback
     // Only play video when strictly focused (in color)
     useEffect(() => {
         const video = videoRef.current;
@@ -59,50 +100,6 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
             video.pause();
         }
     }, [isFocused]);
-
-    // Calculate random scale (0.8 to 1.0) deterministically based on ID
-    const randomScale = useMemo(() => {
-        if (!item.id) return 1;
-        const seed = String(item.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        // % 21 gives 0-20. /100 gives 0.00-0.20. Result: 0.80 to 1.00.
-        return 0.8 + ((seed % 21) / 100);
-    }, [item.id]);
-
-    const finalHeight = 45 * randomScale;
-
-    const unloadMedia = (videoElement) => {
-        if (!videoElement) return;
-
-        // Pause and reset
-        videoElement.pause();
-        videoElement.removeAttribute('src');
-        videoElement.load();
-
-        // Explicitly clear references if possible/needed
-        // (Video element itself will be removed from DOM by React)
-    };
-
-    useEffect(() => {
-        if (item.type !== 'video') return;
-
-        const isIntersecting = intersection && intersection.isIntersecting;
-
-        if (isIntersecting) {
-            setIsLoaded(true);
-            // Play logic handles itself via autoPlay or effects once rendered
-            // Note: If we rely purely on autoPlay, we don't need explicit .play() calls here
-            // unless we want to resume paused videos without unmounting.
-            // But with this pattern, we unmount on exit.
-        } else {
-            // Cleanup BEFORE unmounting/hiding
-            if (videoRef.current) {
-                unloadMedia(videoRef.current);
-            }
-            setIsLoaded(false);
-        }
-    }, [intersection, item.type]);
-
-    // Randomize rotation slightly for hand-drawn feel
     return (
         <motion.div
             ref={mainRef}
@@ -113,6 +110,8 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                 width: 'auto', // Allow width to be determined by content
                 height: `${finalHeight}vh`, // Randomized height
                 marginRight: '80px', // Gap between items
+                contentVisibility: 'auto', // CSS Optimization for off-screen content
+                containIntrinsicSize: `auto ${finalHeight}vh`, // Prevent scroll jump
                 ...style
             }}
             initial={{ opacity: 0, y: 0 }}
@@ -143,7 +142,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                         <div
                             className={clsx(
                                 "relative flex-grow overflow-hidden bg-gray-100 cursor-zoom-in transition-all duration-500",
-                                isFocused ? "grayscale-0" : "grayscale"
+                                isFocused ? "grayscale-0" : "md:grayscale"
                             )}
                             style={{
                                 aspectRatio: item.aspectRatio,
@@ -189,7 +188,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                     <div
                         className={clsx(
                             "relative flex-grow overflow-hidden bg-gray-100 cursor-zoom-in transition-all duration-500",
-                            isFocused ? "grayscale-0" : "grayscale"
+                            isFocused ? "grayscale-0" : "md:grayscale"
                         )}
                         style={{
                             aspectRatio: item.aspectRatio,
@@ -215,12 +214,16 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                                 <div className="w-full h-full bg-stone-200 animate-pulse" />
                             )
                         ) : (
-                            <img
-                                src={item.src}
-                                alt={item.caption}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                            />
+                            isLoaded ? (
+                                <img
+                                    src={item.src}
+                                    alt={item.caption}
+                                    className="h-full w-full object-cover"
+                                // loading="lazy" // Handled manually now
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-stone-100/50" />
+                            )
                         )}
                     </div>
 

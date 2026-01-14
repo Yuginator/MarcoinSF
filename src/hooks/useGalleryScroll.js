@@ -38,7 +38,7 @@ export function useGalleryScroll({
 
 
     // Auto-Scroll Loop
-    useAnimationFrame(() => {
+    useAnimationFrame((time, delta) => {
         if (!lenis) return;
 
         // --- INITIALIZATION ---
@@ -53,6 +53,10 @@ export function useGalleryScroll({
 
             lenis.scrollTo(startScroll, { immediate: true });
             lastScrollRef.current = startScroll;
+
+            // Kickstart speed to max immediately for "walking on entry" effect
+            currentSpeedRef.current = autoScrollSpeed;
+
             initRef.current = true;
             return; // Skip this frame to let jumps settle
         }
@@ -90,19 +94,24 @@ export function useGalleryScroll({
         }
 
         // Accelerate
+        // Normalize acceleration to 60fps (16.67ms)
+        // If delta is 33ms (30fps), accel should be 2x
+        const timeScale = delta / 16.667;
+
         if (currentSpeedRef.current < autoScrollSpeed) {
             currentSpeedRef.current = Math.min(
-                currentSpeedRef.current + acceleration,
+                currentSpeedRef.current + (acceleration * timeScale),
                 autoScrollSpeed
             );
         } else if (currentSpeedRef.current > autoScrollSpeed) {
             currentSpeedRef.current = Math.max(
-                currentSpeedRef.current - acceleration,
+                currentSpeedRef.current - (acceleration * timeScale),
                 autoScrollSpeed
             );
         }
 
-        const increment = currentSpeedRef.current;
+        // Apply speed corrected for delta time
+        const increment = currentSpeedRef.current * timeScale;
         lenis.scrollTo(currentScroll + increment, { immediate: true });
     });
 
