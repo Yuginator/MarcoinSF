@@ -401,14 +401,20 @@ const GalleryTrack = ({ onReady }) => {
                             <div id="gallery-start-marker" className="flex-shrink-0" style={{ width: '1px', opacity: 0 }} />
 
                             {/* Door Doodle - Start of Gallery */}
-                            <div
-                                className="flex-shrink-0 bg-black rounded-t-full self-end"
-                                style={{
-                                    width: '250px',
-                                    height: '350px',
-                                    marginRight: `${artworkGap}px`
-                                }}
-                            />
+                            <div className="relative h-full flex-shrink-0" style={{ width: '250px', marginRight: `${artworkGap}px` }}>
+                                <div
+                                    className="absolute left-0 w-full bg-black rounded-t-full"
+                                    style={{
+                                        height: '350px',
+                                        // Container is effectively 70vh high (100vh - 30vh padding).
+                                        // Ground is at 20vh from bottom (so 80vh from top).
+                                        // We need bottom of door to be at 80vh.
+                                        // Relative to 70vh container, 80vh is "-10vh" from bottom.
+                                        // Formula: groundHeight - 30vh.
+                                        bottom: `calc(${groundHeight}vh - 30vh)`
+                                    }}
+                                />
+                            </div>
 
                             {renderItems.map((item) => {
 
@@ -471,14 +477,15 @@ const GalleryTrack = ({ onReady }) => {
                             <div id="gallery-loop-marker" className="flex-shrink-0" style={{ width: '1px', opacity: 0 }} />
 
                             {/* 1. Clone Door */}
-                            <div
-                                className="flex-shrink-0 bg-black rounded-t-full self-end"
-                                style={{
-                                    width: '250px',
-                                    height: '350px',
-                                    marginRight: `${artworkGap}px`
-                                }}
-                            />
+                            <div className="relative h-full flex-shrink-0" style={{ width: '250px', marginRight: `${artworkGap}px` }}>
+                                <div
+                                    className="absolute left-0 w-full bg-black rounded-t-full"
+                                    style={{
+                                        height: '350px',
+                                        bottom: `calc(${groundHeight}vh - 30vh)`
+                                    }}
+                                />
+                            </div>
 
                             {/* 2. Clone Items (First few items repeated) */}
                             {renderItems.slice(0, 5).map((item) => {

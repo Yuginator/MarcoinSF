@@ -21,12 +21,12 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
 
     return (
         <div className={clsx(
-            "flex flex-col items-center gap-8 md:gap-16 max-w-4xl px-8 text-center transition-colors duration-0 pointer-events-none", // Allow clicks to pass through
+            "relative w-full h-full pointer-events-none", // Changed to full screen relative layout
             isBackground ? "text-white" : "text-stone-900"
         )}>
-            {/* Main Title Group - Explicitly non-interactive */}
+            {/* Main Title Group - Centered */}
             <div className={clsx(
-                "flex flex-col items-center pointer-events-none",
+                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none",
                 isBackground && "opacity-0"
             )}>
                 <div className={clsx(
@@ -55,9 +55,10 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
                 </div>
             </div>
 
-            {/* Enter Button / Door Group - Re-enable pointer events ONLY for the button area */}
+            {/* Enter Button / Door Group - Bottom 20vh */}
             <div
-                className="relative cursor-pointer group mt-4 md:mt-8 pointer-events-auto w-fit" // w-fit ensures we don't block side badges
+                className="absolute left-1/2 -translate-x-1/2 cursor-pointer group pointer-events-auto w-fit" // w-fit ensures we don't block side badges
+                style={{ bottom: '20vh' }} // Align to Ground Line
                 onClick={handleClick}
                 data-clickable="true" // Marker for tap detection
             >
