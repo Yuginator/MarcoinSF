@@ -24,7 +24,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
         return 0.8 + ((seed % 21) / 100);
     }, [item.id]);
 
-    const finalHeight = 45 * randomScale;
+    const finalHeight = 58 * randomScale;
 
     const unloadMedia = (videoElement) => {
         if (!videoElement) return;
@@ -107,10 +107,15 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                 "relative flex-shrink-0 transition-transform duration-500 will-change-transform pointer-events-auto"
             )}
             style={{
-                width: 'auto', // Allow width to be determined by content
+                // Calculate deterministic width based on aspect ratio and frame thickness
+                // Projector (Embed): 27px offset (1.5px border + 12px padding, doubled)
+                // Standard Frame: 56px offset (28px border, doubled)
+                width: item.aspectRatio
+                    ? `calc(((${finalHeight}vh - ${item.lightboxEmbed ? '27px' : '56px'}) * ${item.aspectRatio}) + ${item.lightboxEmbed ? '27px' : '56px'})`
+                    : 'auto',
                 height: `${finalHeight}vh`, // Randomized height
                 marginRight: '80px', // Gap between items
-                contentVisibility: 'auto', // CSS Optimization for off-screen content
+                contentVisibility: 'visible', // Disabled 'auto' to prevent border clipping
                 containIntrinsicSize: `auto ${finalHeight}vh`, // Prevent scroll jump
                 ...style
             }}
@@ -126,7 +131,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                     className="absolute left-1/2 -translate-x-1/2 z-20 w-[120px]"
                     style={{ top: `calc(${finalHeight / 2}vh - 35vh)` }}
                 >
-                    <ProjectorSvg className="w-full h-auto" />
+                    <ProjectorSvg className="w-full h-auto doodle-svg" />
                 </div>
             )}
 
@@ -134,10 +139,10 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
                 // Custom Projector Screen Frame
                 <div className="relative h-full flex flex-col items-center">
                     {/* Top Bar (Projector Screen Housing) */}
-                    <div className="absolute -top-3 w-[106%] h-5 bg-white border-2 border-black z-10" />
+                    <div className="absolute -top-3 w-[106%] h-5 bg-white border-[1.5px] border-black z-10" />
 
                     {/* Main Screen Content */}
-                    <div className="h-full bg-white border-2 border-black p-3 shadow-lg flex flex-col w-auto">
+                    <div className="h-full bg-white border-[1.5px] border-black p-3 flex flex-col w-auto">
                         {/* Media Container */}
                         <div
                             className={clsx(
@@ -182,7 +187,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
             ) : (
                 <FramedMedia
                     borderWidth="28px"
-                    className="p-4 bg-white shadow-lg h-full flex flex-col"
+                    className="p-4 bg-white h-full flex flex-col"
                 >
                     {/* Media Container */}
                     <div
@@ -239,7 +244,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
             {
                 item.date && !item.lightboxEmbed && (
                     <div
-                        className="absolute bottom-0 left-[100%] ml-4 bg-white border-2 border-black px-2 py-1 text-sm font-mono whitespace-nowrap z-20"
+                        className="absolute bottom-0 left-[100%] ml-6 bg-white border-[1.5px] border-black px-2 py-1 text-sm font-mono whitespace-nowrap z-20"
                     >
                         {item.date.replace(/-/g, '.')}
                     </div>

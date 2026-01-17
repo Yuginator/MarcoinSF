@@ -13,7 +13,7 @@ const FramedMedia = ({
         borderStyle: 'solid',
         borderWidth: borderWidth,
         borderImageSource: `url("${frameSrc}")`,
-        borderImageSlice: '107', // Adjusted for padding (103 + 4)
+        borderImageSlice: '116', // Adjusted for padding (107 + 9)
         borderImageRepeat: 'stretch',
         borderColor: 'transparent', // Make sure fallback color doesn't show through if loaded
         background: 'white', // Ensure transparent media doesn't show background leaks

@@ -30,11 +30,11 @@ const GalleryTimeline = ({ progress, markers = [], onMarkerSelect, onProgressSel
                 onClick={handleBarClick}
             >
                 {/* 1. Track (Background Bar) */}
-                <div className="absolute bottom-0 left-0 w-full h-4 bg-white border-2 border-black pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-full h-4 bg-white border-[1.5px] border-black pointer-events-none" />
 
                 {/* 2. Progress Fill (Current Position) */}
                 <motion.div
-                    className="absolute bottom-0 left-0 h-4 bg-black border-y-2 border-l-2 border-transparent origin-left pointer-events-none"
+                    className="absolute bottom-0 left-0 h-4 bg-black border-y-[1.5px] border-l-[1.5px] border-transparent origin-left pointer-events-none"
                     // Note: border-transparent is to avoid double borders if we wanted them, 
                     // but simple bg-black inside the white bordered container is cleaner.
                     // We just need to fit it inside. 
@@ -58,7 +58,7 @@ const GalleryTimeline = ({ progress, markers = [], onMarkerSelect, onProgressSel
                     Inner Div 1: White bg.
                     Inner Div 2: Black bg (scaled).
                 */}
-                <div className="absolute bottom-0 left-0 w-full h-4 border-2 border-black pointer-events-none overflow-hidden bg-white">
+                <div className="absolute bottom-0 left-0 w-full h-4 border-[1.5px] border-black pointer-events-none overflow-hidden bg-white">
                     <motion.div
                         className="h-full bg-black origin-left"
                         style={{ scaleX: progress, width: '100%' }}

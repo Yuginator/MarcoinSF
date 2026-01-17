@@ -283,9 +283,10 @@ const LandingPage = ({ onEnter }) => {
             setDoorRect(rect);
         }
         setIsZooming(true);
+        // User requested: Play full expand animation, THEN load
         setTimeout(() => {
             onEnter();
-        }, 1200); // Wait for zoom
+        }, 1600); // Wait for 1.5s animation + small buffer
     };
 
     const handleDoorHover = (isHovering) => {
@@ -360,7 +361,7 @@ const LandingPage = ({ onEnter }) => {
             >
                 <div className="relative z-10 pointer-events-none">
                     {/* Note: Foreground LandingContent also needs pointer-events-none on wrapper to be safe, though mask usually handles it */}
-                    <LandingContent isBackground={false} onEnter={handleEnter} isZooming={isZooming} isDoorHovered={isGlobalDoorHovered} />
+                    <LandingContent isBackground={false} onEnter={handleEnter} isZooming={isZooming} isDoorHovered={isGlobalDoorHovered} onDoorHover={handleDoorHover} />
                 </div>
             </motion.div>
 

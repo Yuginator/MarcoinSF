@@ -7,6 +7,7 @@ import LandingPage from './components/LandingPage'
 import GalleryMask from './components/GalleryMask'
 import FrameTestPage from './components/FrameTestPage'
 import Preloader from './components/Preloader'
+import FpsMonitor from './components/FpsMonitor'
 import './index.css'
 
 // Helper component to access Lenis context
@@ -49,10 +50,12 @@ function App() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
+  const [isGalleryReady, setIsGalleryReady] = useState(false);
 
   return (
     <ReactLenis root options={{ orientation: 'horizontal', gestureOrientation: 'both' }}>
       <Leva hidden />
+      <FpsMonitor />
       <ScrollMapper hasEntered={hasEntered} />
       <main className="bg-[#fdfaf6] text-slate-800 min-h-screen w-full antialiased no-scrollbar">
         <AnimatePresence mode="wait">
@@ -69,8 +72,8 @@ function App() {
               transition={{ duration: 1 }}
               className="absolute inset-0 w-full h-full"
             >
-              <GalleryMask>
-                <GalleryTrack />
+              <GalleryMask isReady={isGalleryReady}>
+                <GalleryTrack onReady={setIsGalleryReady} />
               </GalleryMask>
             </motion.div>
           )}
