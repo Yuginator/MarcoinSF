@@ -106,6 +106,8 @@ const GalleryTrack = ({ onReady }) => {
     });
 
     // --- VIRTUALIZATION LOGIC ---
+    const lastVisibilityScrollRef = useRef(0);
+    const hasInitVisibilityRef = useRef(false);
     const [visibleCrowdRange, setVisibleCrowdRange] = useState({ start: 0, end: 0 });
     const [visibleFgRange, setVisibleFgRange] = useState({ start: 0, end: 0 });
 
@@ -161,9 +163,16 @@ const GalleryTrack = ({ onReady }) => {
 
     useEffect(() => {
         const unsubscribe = scrollX.on('change', (latest) => {
-            updateVisibleRanges(latest);
+            // Throttle: Only update visibility if scrolled more than 100px
+            // OR if it's the first time
+            if (!hasInitVisibilityRef.current || Math.abs(latest - lastVisibilityScrollRef.current) > 100) {
+                updateVisibleRanges(latest);
+                lastVisibilityScrollRef.current = latest;
+                hasInitVisibilityRef.current = true;
+            }
         });
         updateVisibleRanges(scrollX.get());
+        lastVisibilityScrollRef.current = scrollX.get();
         return () => unsubscribe();
     }, [scrollX, crowdDoodles, foregroundDoodles, crowdParallax, fgParallax]);
 

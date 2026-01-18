@@ -44,7 +44,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
     // Also applying to ALL media (images too) for memory management.
     const intersection = useIntersection(mainRef, {
         root: null,
-        rootMargin: '600px', // Load when within 600px (approx 30-50vw)
+        rootMargin: isMobile ? '200px' : '600px', // Load earlier on desktop, later on mobile to save RAM
         threshold: 0,        // Trigger as soon as it touches the buffer
     });
 
@@ -73,6 +73,13 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
             }
             setIsLoaded(false);
         }
+
+        // Failsafe: Cleanup on component unmount
+        return () => {
+            if (videoRef.current) {
+                unloadMedia(videoRef.current);
+            }
+        };
     }, [intersection, item.type]);
 
     // DEBUG: Track focused item
@@ -178,12 +185,17 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
                                     <div className="w-full h-full bg-stone-200 animate-pulse" />
                                 )
                             ) : (
-                                <img
-                                    src={item.src}
-                                    alt={item.caption}
-                                    className="h-full w-full object-cover"
-                                    loading="lazy"
-                                />
+                                isLoaded ? (
+                                    <img
+                                        src={item.src}
+                                        alt={item.caption}
+                                        className="h-full w-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-stone-100/50 flex items-center justify-center">
+                                        <div className="w-4 h-4 rounded-full bg-stone-200 animate-ping" />
+                                    </div>
+                                )
                             )}
                         </div>
 
