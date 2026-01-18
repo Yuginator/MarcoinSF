@@ -9,7 +9,12 @@ const WalkingCharacter = ({ className, style, stride = 50 }) => {
     // Convert modules to array and sort by filename to ensure correct sequence
     const frames = useMemo(() => {
         return Object.keys(walkModules)
-            .sort() // Sorts alphabetically: walk00001.svg, walk00002.svg, etc.
+            .sort((a, b) => {
+                // Robust numeric sort: extract "1" from "walk00001.svg"
+                const numA = parseInt(a.match(/walk(\d+)/)?.[1] || 0, 10);
+                const numB = parseInt(b.match(/walk(\d+)/)?.[1] || 0, 10);
+                return numA - numB;
+            })
             .map(path => walkModules[path].default);
     }, []);
 
@@ -38,15 +43,17 @@ const WalkingCharacter = ({ className, style, stride = 50 }) => {
         lastScrollRef.current = scroll;
 
         // If movement is negligible, reset to standing (frame 0)
-        // Threshold adjusted for smoothed value
-        if (smoothedDeltaRef.current < 0.1) {
+        // Threshold adjusted for smoothed value. Lowered to 0.05 to hold walk longer.
+        if (smoothedDeltaRef.current < 0.05) {
             setCurrentFrame(prev => (prev !== 0 ? 0 : prev));
             return;
         }
 
         // Calculate frame based on distance traveled
         // stride = pixels per frame
-        const frameIndex = Math.floor(scroll / stride) % frames.length;
+        // Handle negative scroll (overscroll) with robust modulo
+        let frameIndex = Math.floor(scroll / stride) % frames.length;
+        if (frameIndex < 0) frameIndex += frames.length;
 
         // DEBUG
         debugState.frame = frameIndex;
