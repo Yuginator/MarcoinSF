@@ -24,13 +24,13 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
             "relative w-full h-full pointer-events-none", // Changed to full screen relative layout
             isBackground ? "text-white" : "text-stone-900"
         )}>
-            {/* Main Title Group - Centered */}
+            {/* 1. Main Title Group - Top Section (Moved up 10%) */}
             <div className={clsx(
-                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none",
+                "absolute top-[12%] left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none",
                 isBackground && "opacity-0"
             )}>
                 <div className={clsx(
-                    "relative w-full max-w-[90vw] md:max-w-[720px] transition-colors duration-0",
+                    "relative w-full max-w-[85vw] md:max-w-[580px] transition-colors duration-0", // Reduced width (was 720px)
                     isBackground ? "text-white" : "text-stone-900"
                 )}>
                     {/* Image in the "口" hole */}
@@ -55,10 +55,10 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
                 </div>
             </div>
 
-            {/* Enter Button / Door Group - Bottom 20vh */}
+            {/* Enter Button / Door Group - Bottom 30vh */}
             <div
                 className="absolute left-1/2 -translate-x-1/2 cursor-pointer group pointer-events-auto w-fit" // w-fit ensures we don't block side badges
-                style={{ bottom: '20vh' }} // Align to Ground Line
+                style={{ bottom: '30vh' }} // Align to Ground Line
                 onClick={handleClick}
                 data-clickable="true" // Marker for tap detection
             >
@@ -79,7 +79,7 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
                         className="relative z-10 origin-bottom"
                     >
                         <div className={clsx(
-                            "w-[100px] md:w-[130px] h-auto transition-colors duration-300 relative",
+                            "w-[80px] md:w-[100px] h-auto transition-colors duration-300 relative", // Reduced size (was 130px)
                             isBackground ? "text-white" : "text-stone-900"
                         )}>
                             <BlackDoor className="w-full h-full fill-current" />
@@ -115,7 +115,7 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
 
                     {/* Smoking Man (Right side - Absolute) */}
                     <div className={clsx(
-                        "absolute left-[85%] bottom-0 ml-[-12px] w-24 md:w-[260px] h-auto mb-0 md:mb-1 pointer-events-none z-50",
+                        "absolute left-[85%] bottom-0 ml-[-12px] w-20 md:w-[220px] h-auto mb-0 md:mb-1 pointer-events-none z-50", // Scaled to 220px
                         isBackground ? "text-white" : "text-stone-900"
                     )}>
                         <SmokingCharacter
@@ -127,13 +127,13 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
 
             </div>
 
-            {/* Bottom Text Group */}
+            {/* 3. Bottom Text Group - Bottom Section (Lifted +10%) */}
             <div className={clsx(
-                "flex flex-col items-center justify-center gap-1 md:gap-4 mt-4 font-ipix uppercase tracking-widest z-10 relative",
+                "absolute bottom-[18vh] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 md:gap-3 font-ipix uppercase tracking-widest z-10 whitespace-nowrap",
                 isBackground && "opacity-0"
             )}>
-                <span className="text-sm md:text-xl font-medium">Marco's Secret Life In SF</span>
-                <span className="text-3xl md:text-5xl font-light tracking-wider">2021—2025.12</span>
+                <span className="text-xs md:text-lg font-medium">Marco's Secret Life In SF</span>
+                <span className="text-2xl md:text-3xl font-light tracking-wider">2021—2025.12</span>
             </div>
         </div>
     );
@@ -347,7 +347,7 @@ const LandingPage = ({ onEnter }) => {
 
 
                 {/* Inverted Content (Visible in Hole) - Now Interactable */}
-                <div className="relative z-10 pointer-events-none">
+                <div className="absolute inset-0 z-10 pointer-events-none w-full h-full">
                     <LandingContent isBackground={true} onEnter={handleEnter} isZooming={isZooming} onDoorHover={handleDoorHover} isDoorHovered={isGlobalDoorHovered} />
                 </div>
             </div>
@@ -360,7 +360,7 @@ const LandingPage = ({ onEnter }) => {
                     WebkitMaskImage: smoothMaskImage
                 }}
             >
-                <div className="relative z-10 pointer-events-none">
+                <div className="absolute inset-0 z-10 pointer-events-none w-full h-full">
                     {/* Note: Foreground LandingContent also needs pointer-events-none on wrapper to be safe, though mask usually handles it */}
                     <LandingContent isBackground={false} onEnter={handleEnter} isZooming={isZooming} isDoorHovered={isGlobalDoorHovered} onDoorHover={handleDoorHover} />
                 </div>
