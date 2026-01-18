@@ -9,7 +9,7 @@ import BlackDoor from '../assets/cover/blackdoor.svg?react';
 import SmokingCharacter from './SmokingCharacter';
 
 // Reusable Content Component to ensure perfect alignment between layers
-const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDoorHover, isDoorHovered }) => {
+const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDoorHover, isDoorHovered, isMobile }) => {
     const doorRef = useRef(null);
 
     const handleClick = (e) => {
@@ -55,10 +55,10 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
                 </div>
             </div>
 
-            {/* Enter Button / Door Group - Bottom 35vh */}
+            {/* Enter Button / Door Group - Bottom 30vh (Desktop) / 35vh (Mobile) */}
             <div
                 className="absolute left-1/2 -translate-x-1/2 cursor-pointer group pointer-events-auto w-fit" // w-fit ensures we don't block side badges
-                style={{ bottom: '35vh' }} // Align to Ground Line
+                style={{ bottom: isMobile ? '35vh' : '25vh' }} // Align to Ground Line
                 onClick={handleClick}
                 data-clickable="true" // Marker for tap detection
             >
@@ -129,7 +129,7 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
 
             {/* 3. Bottom Text Group - Bottom 23vh */}
             <div className={clsx(
-                "absolute bottom-[23vh] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 md:gap-3 font-ipix uppercase tracking-widest z-10 whitespace-nowrap",
+                "absolute bottom-[23vh] md:bottom-[15vh] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 md:gap-3 font-ipix uppercase tracking-widest z-10 whitespace-nowrap",
                 isBackground && "opacity-0"
             )}>
                 <span className="text-xs md:text-lg font-medium">Marco's Secret Life In SF</span>
@@ -348,7 +348,14 @@ const LandingPage = ({ onEnter }) => {
 
                 {/* Inverted Content (Visible in Hole) - Now Interactable */}
                 <div className="absolute inset-0 z-10 pointer-events-none w-full h-full">
-                    <LandingContent isBackground={true} onEnter={handleEnter} isZooming={isZooming} onDoorHover={handleDoorHover} isDoorHovered={isGlobalDoorHovered} />
+                    <LandingContent
+                        isBackground={true}
+                        onEnter={handleEnter}
+                        isZooming={isZooming}
+                        onDoorHover={handleDoorHover}
+                        isDoorHovered={isGlobalDoorHovered}
+                        isMobile={isMobile}
+                    />
                 </div>
             </div>
 
@@ -362,7 +369,14 @@ const LandingPage = ({ onEnter }) => {
             >
                 <div className="absolute inset-0 z-10 pointer-events-none w-full h-full">
                     {/* Note: Foreground LandingContent also needs pointer-events-none on wrapper to be safe, though mask usually handles it */}
-                    <LandingContent isBackground={false} onEnter={handleEnter} isZooming={isZooming} isDoorHovered={isGlobalDoorHovered} onDoorHover={handleDoorHover} />
+                    <LandingContent
+                        isBackground={false}
+                        onEnter={handleEnter}
+                        isZooming={isZooming}
+                        isDoorHovered={isGlobalDoorHovered}
+                        onDoorHover={handleDoorHover}
+                        isMobile={isMobile}
+                    />
                 </div>
             </motion.div>
 
