@@ -45,13 +45,12 @@ function ScrollMapper({ hasEntered }) {
     // OMNI-DIRECTIONAL TOUCH: Map Vertical & Horizontal drag to scroll + INERTIA
     let touchStartX = 0;
     let touchStartY = 0;
-    let initialScroll = 0;
-
-    // Inertia Tracking
     let lastX = 0;
     let lastY = 0;
     let velocityX = 0;
     let velocityY = 0;
+    let initialScroll = 0;
+    let dominantAxis = null; // Lock the movement to one direction per gesture
     let animationFrameId = null;
 
     const handleTouchStart = (e) => {
@@ -62,6 +61,7 @@ function ScrollMapper({ hasEntered }) {
       velocityX = 0;
       velocityY = 0;
       initialScroll = lenis.scroll;
+      dominantAxis = null; // Reset lock on every new touch
 
       // Stop any existing inertia fling
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -79,25 +79,36 @@ function ScrollMapper({ hasEntered }) {
       const totalMoveX = touchStartX - x;
       const totalMoveY = touchStartY - y;
 
-      // Calculate instantaneous velocity (current - last)
-      // This runs on every touchmove event (high frequency)
+      // Determine dominant axis if not yet locked (threshold to prevent noise)
+      if (!dominantAxis) {
+        if (Math.abs(totalMoveX) > 5 || Math.abs(totalMoveY) > 5) {
+          dominantAxis = Math.abs(totalMoveX) > Math.abs(totalMoveY) ? 'x' : 'y';
+        }
+      }
+
+      // Calculate instantaneous velocity (current - last) for both axes
       velocityX = lastX - x;
       velocityY = lastY - y;
-
       lastX = x;
       lastY = y;
 
-      const totalDelta = totalMoveX + totalMoveY;
-      lenis.scrollTo(initialScroll + totalDelta, { immediate: true });
+      // Only scroll if we have a locked axis
+      if (dominantAxis === 'x') {
+        lenis.scrollTo(initialScroll + totalMoveX, { immediate: true });
+      } else if (dominantAxis === 'y') {
+        lenis.scrollTo(initialScroll + totalMoveY, { immediate: true });
+      }
     };
 
     const handleTouchEnd = () => {
-      // Combine velocities and clamp to prevent "Warp Speed"
-      // Max velocity 30 prevents the gallery from flying too fast
-      const rawVelocity = velocityX + velocityY;
+      // Use velocity ONLY from the locked axis to prevent diagonal cancellation
+      let rawVelocity = 0;
+      if (dominantAxis === 'x') rawVelocity = velocityX;
+      else if (dominantAxis === 'y') rawVelocity = velocityY;
+
       const velocity = Math.min(Math.max(rawVelocity, -30), 30);
 
-      // Apply Momentum if velocity is significantx
+      // Apply Momentum if velocity is significant
       if (Math.abs(velocity) > 0.1) {
         // Power factor determines how far the "throw" goes
         const power = 60; // Increased from 15 for much stronger fling
