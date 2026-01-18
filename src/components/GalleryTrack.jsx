@@ -50,7 +50,7 @@ const GalleryTrack = ({ onReady }) => {
             artworkGap: { value: isMobile ? 160 : 220, min: 0, max: 500, label: 'Artwork Gap (px)' },
             crowdBottom: { value: isMobile ? 18 : 19, min: 0, max: 50, label: 'Crowd Bottom %' },
             fgBottom: { value: -5, min: -30, max: 10, label: 'FG Bottom %' },
-            groundHeight: { value: 30, min: 0, max: 100, label: 'Ground Height %' },
+            groundHeight: { value: 35, min: 0, max: 100, label: 'Ground Height %' },
             charBottom: { value: 10, min: 0, max: 50, label: 'Char Bottom %' }
         }),
         Visibility: folder({
@@ -69,7 +69,7 @@ const GalleryTrack = ({ onReady }) => {
         }),
         AutoScroll: folder({
             autoScrollSpeed: { value: 2.5, min: 0, max: 10, label: 'Target Speed' },
-            acceleration: { value: 0.01, min: 0.001, max: 0.1, step: 0.001, label: 'Accel Factor' },
+            acceleration: { value: 0.05, min: 0.001, max: 0.1, step: 0.001, label: 'Accel Factor' },
             stride: { value: 50, min: 10, max: 200, label: 'Char Stride' },
             enableAutoScroll: { value: true, label: 'Enable Auto-Scroll' }
         })
@@ -324,7 +324,7 @@ const GalleryTrack = ({ onReady }) => {
     }, []);
 
     return (
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full no-callout">
             {/* BGM PLAYER */}
             <BackgroundMusic isLightboxOpen={isLightboxOpen} autoPlay={true} />
 

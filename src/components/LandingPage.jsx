@@ -24,13 +24,13 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
             "relative w-full h-full pointer-events-none", // Changed to full screen relative layout
             isBackground ? "text-white" : "text-stone-900"
         )}>
-            {/* 1. Main Title Group - Top Section (Moved up 10%) */}
+            {/* 1. Main Title Group - Top Section (Moved to 20%) */}
             <div className={clsx(
-                "absolute top-[12%] left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none",
+                "absolute top-[20%] left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none",
                 isBackground && "opacity-0"
             )}>
                 <div className={clsx(
-                    "relative w-full max-w-[85vw] md:max-w-[580px] transition-colors duration-0", // Reduced width (was 720px)
+                    "relative w-full max-w-[90vw] md:max-w-[580px] transition-colors duration-0", // Width 90vw
                     isBackground ? "text-white" : "text-stone-900"
                 )}>
                     {/* Image in the "口" hole */}
@@ -55,10 +55,10 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
                 </div>
             </div>
 
-            {/* Enter Button / Door Group - Bottom 30vh */}
+            {/* Enter Button / Door Group - Bottom 35vh */}
             <div
                 className="absolute left-1/2 -translate-x-1/2 cursor-pointer group pointer-events-auto w-fit" // w-fit ensures we don't block side badges
-                style={{ bottom: '30vh' }} // Align to Ground Line
+                style={{ bottom: '35vh' }} // Align to Ground Line
                 onClick={handleClick}
                 data-clickable="true" // Marker for tap detection
             >
@@ -127,9 +127,9 @@ const LandingContent = ({ isBackground = false, onEnter, isZooming = false, onDo
 
             </div>
 
-            {/* 3. Bottom Text Group - Bottom Section (Lifted +10%) */}
+            {/* 3. Bottom Text Group - Bottom 23vh */}
             <div className={clsx(
-                "absolute bottom-[18vh] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 md:gap-3 font-ipix uppercase tracking-widest z-10 whitespace-nowrap",
+                "absolute bottom-[23vh] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 md:gap-3 font-ipix uppercase tracking-widest z-10 whitespace-nowrap",
                 isBackground && "opacity-0"
             )}>
                 <span className="text-xs md:text-lg font-medium">Marco's Secret Life In SF</span>

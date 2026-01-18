@@ -37,6 +37,33 @@ export function useGalleryScroll({
 
 
 
+    const isUserInteractingRef = useRef(false);
+    const resumeTimerRef = useRef(null);
+
+    // Interaction Handlers to Pause Auto-Scroll
+    useEffect(() => {
+        const handleInteraction = () => {
+            isUserInteractingRef.current = true;
+
+            // Clear existing timer
+            if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+
+            // Set new timer to resume after 0.1s of inactivity
+            resumeTimerRef.current = setTimeout(() => {
+                isUserInteractingRef.current = false;
+            }, 100);
+        };
+
+        const events = ['wheel', 'pointerdown', 'keydown', 'touchstart'];
+
+        events.forEach(event => window.addEventListener(event, handleInteraction, { passive: true }));
+
+        return () => {
+            events.forEach(event => window.removeEventListener(event, handleInteraction));
+            if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+        };
+    }, []);
+
     // Auto-Scroll Loop
     useAnimationFrame((time, delta) => {
         if (!lenis) return;
@@ -88,7 +115,19 @@ export function useGalleryScroll({
 
         lastScrollRef.current = currentScroll;
 
-        if (!enableAutoScroll) {
+        // --- SPEED LOGIC ---
+
+        // 1. Check for High Inertia (Coasting)
+        // If user finished interacting but scroll is still flying fast, let it glide.
+        // Don't "slam on the brakes" to enforce walking speed until it slows down naturally.
+        const velocityThreshold = autoScrollSpeed * 2; // e.g. 5.0
+        if (!isUserInteractingRef.current && Math.abs(lenis.velocity) > velocityThreshold) {
+            currentSpeedRef.current = 0;
+            return;
+        }
+
+        // 2. Interaction / Disable Check
+        if (!enableAutoScroll || isUserInteractingRef.current) {
             currentSpeedRef.current = 0;
             return;
         }

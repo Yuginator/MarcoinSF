@@ -85,4 +85,13 @@
     -ms-user-select: text;
     user-select: text;
   }
+
+  /* Explicit Mobile Interaction Polish */
+  .no-callout {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    touch-action: pan-x pan-y !important;
+    /* Allow scroll but prevent other gestures */
+  }
 }

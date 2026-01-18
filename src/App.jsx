@@ -24,18 +24,57 @@ function ScrollMapper({ hasEntered }) {
   useEffect(() => {
     if (!lenis) return
 
+    // OMNI-DIRECTIONAL WHEEL: Sum X and Y deltas
     const handleWheel = (e) => {
-      const isTouchpad = Math.abs(e.deltaX) > 0 || Number.isInteger(e.deltaY) === false;
+      // allow default browser zoom (ctrl+wheel)
+      if (e.ctrlKey) return;
 
-      // If purely vertical wheel (mouse), map to horizontal
-      if (!isTouchpad && e.deltaY !== 0 && e.deltaX === 0) {
+      const delta = e.deltaX + e.deltaY;
+      if (delta !== 0) {
         e.preventDefault();
-        lenis.scrollTo(lenis.scroll + e.deltaY * 2.5, { immediate: true })
+        // 1.5 multiplier for sensitivity
+        lenis.scrollTo(lenis.scroll + delta * 1.5, { immediate: true })
       }
     }
 
+    // OMNI-DIRECTIONAL TOUCH: Map Vertical & Horizontal drag to scroll
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let initialScroll = 0;
+
+    const handleTouchStart = (e) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      initialScroll = lenis.scroll;
+    };
+
+    const handleTouchMove = (e) => {
+      // Prevent default Pull-to-Refresh etc.
+      // We take full control.
+      if (e.cancelable) e.preventDefault();
+
+      const x = e.touches[0].clientX;
+      const y = e.touches[0].clientY;
+
+      const deltaX = touchStartX - x;
+      const deltaY = touchStartY - y;
+
+      // Sum deltas: Dragging Left (positive deltaX) = Scroll Right (Increase)
+      // Dragging Up (positive deltaY) = Scroll Right (Increase)
+      const totalDelta = deltaX + deltaY;
+
+      lenis.scrollTo(initialScroll + totalDelta, { immediate: true });
+    };
+
     window.addEventListener('wheel', handleWheel, { passive: false })
-    return () => window.removeEventListener('wheel', handleWheel)
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+    window.addEventListener('touchmove', handleTouchMove, { passive: false })
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel)
+      window.removeEventListener('touchstart', handleTouchStart)
+      window.removeEventListener('touchmove', handleTouchMove)
+    }
   }, [lenis])
 
   return null
@@ -55,6 +94,7 @@ function App() {
   return (
     <ReactLenis root options={{ orientation: 'horizontal', gestureOrientation: 'both' }}>
       <Leva hidden />
+      <FpsMonitor />
       <ScrollMapper hasEntered={hasEntered} />
       <main className="bg-[#fdfaf6] text-slate-800 min-h-screen w-full antialiased no-scrollbar">
         <AnimatePresence mode="wait">
