@@ -8,7 +8,7 @@ import { debugState } from '../debugState'; // DEBUG
 
 import ProjectorSvg from '../assets/doodle/projector/projector.svg?react';
 
-const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
+const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
     const mainRef = useRef(null);
     const focusRef = useRef(null);
     const videoRef = useRef(null);
@@ -121,7 +121,12 @@ const ArtFrame = ({ item, index, style, onToggleLightbox }) => {
             }}
             initial={{ opacity: 0, y: 0 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "0px -100px" }}
+            viewport={{
+                once: true,
+                // Desktop: Contract viewport (-100px) for fade-in effect
+                // Mobile: Expand viewport (+200px) to pre-load visual before entry to avoid "Late Pop-in"
+                margin: isMobile ? "0px 200px" : "0px -100px"
+            }}
         >
             {/* Focus Detection Trigger Layer */}
             <div ref={focusRef} className="absolute inset-0 pointer-events-none" />

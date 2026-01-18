@@ -391,6 +391,7 @@ const GalleryTrack = ({ onReady }) => {
                                                 index={item.index}
                                                 style={{ marginRight: `${margin}px` }}
                                                 onToggleLightbox={setIsLightboxOpen}
+                                                isMobile={isMobile}
                                             />
                                         </div>
                                     );
@@ -455,6 +456,7 @@ const GalleryTrack = ({ onReady }) => {
                                                     index={item.index}
                                                     style={{ marginRight: `${margin}px` }}
                                                     onToggleLightbox={setIsLightboxOpen}
+                                                    isMobile={isMobile}
                                                 />
                                             </div>
                                         );
@@ -467,6 +469,7 @@ const GalleryTrack = ({ onReady }) => {
                                             index={item.index}
                                             style={{ marginRight: `${margin}px` }}
                                             onToggleLightbox={setIsLightboxOpen}
+                                            isMobile={isMobile}
                                         />
                                     );
                                 }
