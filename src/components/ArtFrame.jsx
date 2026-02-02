@@ -185,7 +185,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile, priority = f
                                     <video
                                         ref={videoRef}
                                         src={item.src}
-                                        className="h-full w-full object-cover"
+                                        className="h-full w-full object-cover fade-in-media"
                                         loop
                                         muted
                                         playsInline
@@ -198,7 +198,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile, priority = f
                                 <img
                                     src={item.src}
                                     alt={item.caption}
-                                    className="h-full w-full object-cover"
+                                    className="h-full w-full object-cover fade-in-media"
                                     loading="lazy"
                                 />
                             )}
@@ -232,7 +232,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile, priority = f
                                 <video
                                     ref={videoRef}
                                     src={item.src}
-                                    className="h-full w-full object-cover"
+                                    className="h-full w-full object-cover fade-in-media"
                                     loop
                                     muted
                                     playsInline
@@ -246,7 +246,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile, priority = f
                                 <img
                                     src={item.src}
                                     alt={item.caption}
-                                    className="h-full w-full object-cover"
+                                    className="h-full w-full object-cover fade-in-media"
                                 // loading="lazy" // Handled manually now
                                 />
                             ) : (
