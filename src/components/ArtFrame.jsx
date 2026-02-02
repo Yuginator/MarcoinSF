@@ -7,7 +7,7 @@ import FramedMedia from './FramedMedia';
 
 import ProjectorSvg from '../assets/doodle/projector/projector.svg?react';
 
-const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
+const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile, priority = false }) => {
     const mainRef = useRef(null);
     const focusRef = useRef(null);
     const videoRef = useRef(null);
@@ -69,7 +69,9 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
     useEffect(() => {
         const isIntersecting = intersection && intersection.isIntersecting;
 
-        if (isIntersecting) {
+        // VIRTUALIZATION:
+        // If priority is true (e.g., loop boundaries), keep loaded regardless of intersection.
+        if (priority || isIntersecting) {
             setIsLoaded(true);
         } else {
             // Cleanup BEFORE unmounting/hiding
@@ -78,7 +80,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
             }
             setIsLoaded(false);
         }
-    }, [intersection, item.type]);
+    }, [intersection, item.type, priority]);
 
     // ROBUST CLEANUP ON UNMOUNT
     // Critical for preventing memory leaks when navigating away or rapid scrolling
@@ -162,7 +164,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
                     <div className="absolute -top-3 w-[106%] h-5 bg-white border-[1.5px] border-black z-10" />
 
                     {/* Main Screen Content */}
-                    <div className="h-full bg-white border-[1.5px] border-black p-3 flex flex-col w-auto">
+                    <div className="h-full bg-white border-[1.5px] border-black p-3 flex flex-col w-full">
                         {/* Media Container */}
                         <div
                             className={clsx(

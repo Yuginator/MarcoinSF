@@ -42,7 +42,28 @@ export function useGalleryScroll({
 
     // Interaction Handlers to Pause Auto-Scroll
     useEffect(() => {
-        const handleInteraction = () => {
+        let startX = 0;
+        let startY = 0;
+        const TAP_THRESHOLD = 10;
+
+        const handleInteraction = (e) => {
+            // Filter Taps vs Scrolls for Touch Events
+            if (e.type === 'touchstart') {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                // Do NOT set interacting yet
+                return;
+            }
+
+            if (e.type === 'touchmove') {
+                const currentX = e.touches[0].clientX;
+                const currentY = e.touches[0].clientY;
+                const dist = Math.hypot(currentX - startX, currentY - startY);
+
+                // Ignore micro-movements (wobbly taps)
+                if (dist < TAP_THRESHOLD) return;
+            }
+
             isUserInteractingRef.current = true;
 
             // Clear existing timer
@@ -54,7 +75,7 @@ export function useGalleryScroll({
             }, 100);
         };
 
-        const events = ['wheel', 'pointerdown', 'keydown', 'touchstart'];
+        const events = ['wheel', 'keydown', 'touchstart', 'touchmove'];
 
         events.forEach(event => window.addEventListener(event, handleInteraction, { passive: true }));
 

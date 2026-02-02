@@ -372,6 +372,7 @@ const GalleryTrack = ({ onReady }) => {
                                                 style={{ marginRight: `${margin}px` }}
                                                 onToggleLightbox={setIsLightboxOpen}
                                                 isMobile={isMobile}
+                                                priority={true} // Keep clones loaded
                                             />
                                         </div>
                                     );
@@ -450,6 +451,7 @@ const GalleryTrack = ({ onReady }) => {
                                             style={{ marginRight: `${margin}px` }}
                                             onToggleLightbox={setIsLightboxOpen}
                                             isMobile={isMobile}
+                                            priority={item.index < 5 || item.index >= galleryData.length - 5}
                                         />
                                     );
                                 }
