@@ -211,9 +211,8 @@ const LandingPage = ({ onEnter }) => {
     // Handle Mask Logic (Universal, Reactive)
     useEffect(() => {
         if (isRevealed) {
-            // Expand to Reveal All (3000px for Desktop, 1200px for Mobile)
-            // Using a smaller value on mobile prevents "stretching" the spring curve too far
-            maskRadius.set(isMobile ? 1200 : 3000);
+            // Expand to Reveal All (3000px covers most screens)
+            maskRadius.set(3000);
         } else {
             // Not revealed
             if (isGlobalDoorHovered) {

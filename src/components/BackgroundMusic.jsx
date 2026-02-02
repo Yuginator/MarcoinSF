@@ -49,8 +49,14 @@ const BackgroundMusic = ({ isLightboxOpen, autoPlay = false }) => {
 
         // Cleanup
         return () => {
-            audioRef.current.pause();
-            audioRef.current.src = '';
+            if (audioRef.current) {
+                const audio = audioRef.current;
+                audio.pause();
+                audio.removeAttribute('src');
+                audio.src = "";
+                audio.load();
+                audio.remove(); // Force detach
+            }
         };
     }, []);
 

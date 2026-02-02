@@ -6,20 +6,32 @@ const FramedMedia = ({
     alt = 'Framed media',
     className = '',
     borderWidth = '24px', // extensible prop
+    isVisible = true, // Virtualization control
     children
 }) => {
 
-    const style = {
+    // Heavy Border Style (GPU Intensive)
+    const activeStyle = {
         borderStyle: 'solid',
         borderWidth: borderWidth,
         borderImageSource: `url("${frameSrc}")`,
         borderImageSlice: '116', // Adjusted for padding (107 + 9)
         borderImageRepeat: 'stretch',
-        borderColor: 'transparent', // Make sure fallback color doesn't show through if loaded
-        background: 'white', // Ensure transparent media doesn't show background leaks
-        // Adjust box-sizing if needed, but border-box is usually standard
+        borderColor: 'transparent',
+        background: 'white',
         boxSizing: 'border-box',
     };
+
+    // Cheap Fallback Style (Layout placeholder)
+    const placeholderStyle = {
+        borderStyle: 'solid',
+        borderWidth: borderWidth,
+        borderColor: '#e5e5e5', // Light gray placeholder
+        background: 'white',
+        boxSizing: 'border-box',
+    };
+
+    const style = isVisible ? activeStyle : placeholderStyle;
 
     return (
         <div className={`inline-block relative ${className}`} style={{ ...style, width: 'auto', height: '100%' }}>

@@ -15,6 +15,10 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
     const [isLoaded, setIsLoaded] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
+    if (item.lightboxEmbed) {
+        console.log("Embed Item Detected:", item.id, item.lightboxEmbed);
+    }
+
     // 0. CONSTANTS & CALCULATIONS (Move to top)
     // Calculate random scale (0.8 to 1.0) deterministically based on ID
     const randomScale = useMemo(() => {
@@ -31,7 +35,8 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
         // Pause and reset
         videoElement.pause();
         videoElement.removeAttribute('src');
-        videoElement.load();
+        videoElement.src = ""; // Explicit property clear
+        videoElement.load(); // Force buffer flush
     };
 
 
@@ -44,7 +49,10 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
     // Also applying to ALL media (images too) for memory management.
     const intersection = useIntersection(mainRef, {
         root: null,
-        rootMargin: isMobile ? '200px' : '600px', // Load earlier on desktop, later on mobile to save RAM
+        // MEMORY OPTIMIZATION: Reduce buffer on mobile to prevent OOM/Overheating
+        // Desktop: 600px (~30-50vw) provides smooth experience
+        // Mobile: 200px (just offscreen) ensures we unload aggressively
+        rootMargin: isMobile ? '200px' : '600px',
         threshold: 0,        // Trigger as soon as it touches the buffer
     });
 
@@ -73,14 +81,23 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
             }
             setIsLoaded(false);
         }
+    }, [intersection, item.type]);
 
-        // Failsafe: Cleanup on component unmount
+    // ROBUST CLEANUP ON UNMOUNT
+    // Critical for preventing memory leaks when navigating away or rapid scrolling
+    useEffect(() => {
         return () => {
             if (videoRef.current) {
-                unloadMedia(videoRef.current);
+                const video = videoRef.current;
+                // Forceful cleanup sequence
+                video.pause();
+                video.removeAttribute('src'); // Clear attribute
+                video.src = ""; // Clear property
+                video.load(); // Detach media keys/buffers
+                video.remove(); // Detach from DOM
             }
         };
-    }, [intersection, item.type]);
+    }, []);
 
     // DEBUG: Track focused item
     useEffect(() => {
@@ -111,19 +128,17 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
         <motion.div
             ref={mainRef}
             className={clsx(
-                "relative flex-shrink-0 transition-transform duration-500 will-change-transform pointer-events-auto"
+                "relative flex-shrink-0 transition-transform duration-500 pointer-events-auto"
             )}
             style={{
                 // Calculate deterministic width based on aspect ratio and frame thickness
                 // Projector (Embed): 27px offset (1.5px border + 12px padding, doubled)
                 // Standard Frame: 56px offset (28px border, doubled)
                 width: item.aspectRatio
-                    ? `calc(((${finalHeight}vh - ${item.lightboxEmbed ? '27px' : '56px'}) * ${item.aspectRatio}) + ${item.lightboxEmbed ? '27px' : '56px'})`
+                    ? `calc(((${finalHeight}vh - ${item.lightboxEmbed ? '27px' : '88px'}) * ${item.aspectRatio}) + ${item.lightboxEmbed ? '27px' : '88px'})`
                     : 'auto',
                 height: `${finalHeight}vh`, // Randomized height
                 marginRight: '80px', // Gap between items
-                contentVisibility: 'visible', // Disabled 'auto' to prevent border clipping
-                containIntrinsicSize: `auto ${finalHeight}vh`, // Prevent scroll jump
                 ...style
             }}
             initial={{ opacity: 0, y: 0 }}
@@ -137,8 +152,9 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
         >
             {/* Focus Detection Trigger Layer */}
             <div ref={focusRef} className="absolute inset-0 pointer-events-none" />
-            {/* Projector Doodle for Embeds */}
-            {item.lightboxEmbed && (
+
+            {/* Projector Doodle for Embeds (Virtualized) */}
+            {item.lightboxEmbed && isLoaded && (
                 <div
                     className="absolute left-1/2 -translate-x-1/2 z-20 w-[120px]"
                     style={{ top: `calc(${finalHeight / 2}vh - 35vh)` }}
@@ -185,17 +201,12 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
                                     <div className="w-full h-full bg-stone-200 animate-pulse" />
                                 )
                             ) : (
-                                isLoaded ? (
-                                    <img
-                                        src={item.src}
-                                        alt={item.caption}
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full bg-stone-100/50 flex items-center justify-center">
-                                        <div className="w-4 h-4 rounded-full bg-stone-200 animate-ping" />
-                                    </div>
-                                )
+                                <img
+                                    src={item.src}
+                                    alt={item.caption}
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                />
                             )}
                         </div>
 
@@ -205,6 +216,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
                 <FramedMedia
                     borderWidth="28px"
                     className="p-4 bg-white h-full flex flex-col"
+                    isVisible={isLoaded} // VIRTUALIZATION: Only render heavy border when visible
                 >
                     {/* Media Container */}
                     <div
@@ -257,9 +269,9 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
             )
             }
 
-            {/* Date Label - Positioned bottom-right outside the frame */}
+            {/* Date Label - Positioned bottom-right outside the frame (Virtualized) */}
             {
-                item.date && !item.lightboxEmbed && (
+                item.date && !item.lightboxEmbed && isLoaded && (
                     <div
                         className="absolute bottom-0 left-[100%] ml-6 bg-white border-[1.5px] border-black px-2 py-1 text-sm font-mono whitespace-nowrap z-20"
                     >

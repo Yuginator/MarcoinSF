@@ -32,6 +32,7 @@ const GalleryTrack = ({ onReady }) => {
         showArtworks,
         showCrowd,
         showForeground,
+        showPlayer,
         crowdParallax,
         fgParallax,
         crowdScale,
@@ -56,7 +57,8 @@ const GalleryTrack = ({ onReady }) => {
         Visibility: folder({
             showArtworks: { value: true, label: 'Show Artworks' },
             showCrowd: { value: true, label: 'Show Crowd' },
-            showForeground: { value: true, label: 'Show Foreground' }
+            showForeground: { value: true, label: 'Show Foreground' },
+            showPlayer: { value: true, label: 'Show Player' }
         }),
         Parallax: folder({
             crowdParallax: { value: 0.45, min: 0, max: 3, step: 0.01, label: 'Crowd Parallax' },
@@ -106,8 +108,6 @@ const GalleryTrack = ({ onReady }) => {
     });
 
     // --- VIRTUALIZATION LOGIC ---
-    const lastVisibilityScrollRef = useRef(0);
-    const hasInitVisibilityRef = useRef(false);
     const [visibleCrowdRange, setVisibleCrowdRange] = useState({ start: 0, end: 0 });
     const [visibleFgRange, setVisibleFgRange] = useState({ start: 0, end: 0 });
 
@@ -163,16 +163,9 @@ const GalleryTrack = ({ onReady }) => {
 
     useEffect(() => {
         const unsubscribe = scrollX.on('change', (latest) => {
-            // Throttle: Only update visibility if scrolled more than 100px
-            // OR if it's the first time
-            if (!hasInitVisibilityRef.current || Math.abs(latest - lastVisibilityScrollRef.current) > 100) {
-                updateVisibleRanges(latest);
-                lastVisibilityScrollRef.current = latest;
-                hasInitVisibilityRef.current = true;
-            }
+            updateVisibleRanges(latest);
         });
         updateVisibleRanges(scrollX.get());
-        lastVisibilityScrollRef.current = scrollX.get();
         return () => unsubscribe();
     }, [scrollX, crowdDoodles, foregroundDoodles, crowdParallax, fgParallax]);
 
@@ -181,7 +174,7 @@ const GalleryTrack = ({ onReady }) => {
 
     // DEBUG: Log active counts
     useEffect(() => {
-        console.log(`[Virtualization] Active Nodes - Crowd: ${visibleCrowdDoodles.length}, Foreground: ${visibleForegroundDoodles.length} (Total Generated: ${crowdDoodles.length + foregroundDoodles.length})`);
+        // console.log(`[Virtualization] Active Nodes - Crowd: ${visibleCrowdDoodles.length}, Foreground: ${visibleForegroundDoodles.length} (Total Generated: ${crowdDoodles.length + foregroundDoodles.length})`);
     }, [visibleCrowdDoodles.length, visibleForegroundDoodles.length, crowdDoodles.length, foregroundDoodles.length]);
 
     // --- PRELOADING LOGIC ---
@@ -592,16 +585,18 @@ const GalleryTrack = ({ onReady }) => {
                 )}
 
                 {/* 3.5. Walking Character (Fixed Center) */}
-                <div
-                    className="fixed inset-0 z-[18] pointer-events-none flex items-end justify-center"
-                    style={{ paddingBottom: `${charBottom}vh` }}
-                >
-                    <WalkingCharacter
-                        className="md:drop-shadow-lg"
-                        style={{ width: characterSize, height: characterSize }}
-                        stride={stride}
-                    />
-                </div>
+                {showPlayer && (
+                    <div
+                        className="fixed inset-0 z-[18] pointer-events-none flex items-end justify-center"
+                        style={{ paddingBottom: `${charBottom}vh` }}
+                    >
+                        <WalkingCharacter
+                            className="md:drop-shadow-lg"
+                            style={{ width: characterSize, height: characterSize }}
+                            stride={stride}
+                        />
+                    </div>
+                )}
 
                 {/* 4. Foreground */}
                 {showForeground && (

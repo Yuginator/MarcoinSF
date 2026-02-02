@@ -151,7 +151,7 @@ function App() {
   return (
     <ReactLenis root options={{ orientation: 'horizontal', gestureOrientation: 'both' }}>
       <Leva hidden />
-      {/* <FpsMonitor /> */}
+      {/* <FpsMonitor isActive={hasEntered} /> */}
       <ScrollMapper hasEntered={hasEntered} />
       <main className="bg-[#fdfaf6] text-slate-800 min-h-screen w-full antialiased no-scrollbar">
         <AnimatePresence mode="wait">
