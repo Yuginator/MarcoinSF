@@ -1,24 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useRef } from 'react';
 import { useLenis } from 'lenis/react';
-import { debugState } from '../debugState'; // DEBUG
+import walkingSprite from '../assets/doodle/walkingCharacter/walking-sprite.svg';
 
-// Import all walking character SVGs
-const walkModules = import.meta.glob('../assets/doodle/walkingCharacter/*.svg', { eager: true, query: '?react' });
+const TOTAL_FRAMES = 11;
 
 const WalkingCharacter = ({ className, style, stride = 50 }) => {
-    // Convert modules to array and sort by filename to ensure correct sequence
-    const frames = useMemo(() => {
-        return Object.keys(walkModules)
-            .sort((a, b) => {
-                // Robust numeric sort: extract "1" from "walk00001.svg"
-                const numA = parseInt(a.match(/walk(\d+)/)?.[1] || 0, 10);
-                const numB = parseInt(b.match(/walk(\d+)/)?.[1] || 0, 10);
-                return numA - numB;
-            })
-            .map(path => walkModules[path].default);
-    }, []);
-
-    const [currentFrame, setCurrentFrame] = useState(0);
+    // Wrapper Ref for direct manipulation
+    const divRef = useRef(null);
 
     // Drive animation via Lenis scroll position for perfect sync
     // We utilize a ref to track the last scroll position for manual velocity calculation
@@ -26,7 +14,7 @@ const WalkingCharacter = ({ className, style, stride = 50 }) => {
     const smoothedDeltaRef = useRef(0); // Smoothed velocity to prevent stutter
 
     useLenis(({ scroll }) => {
-        if (frames.length === 0) return;
+        if (!divRef.current) return;
 
         // Calculate velocity manually (more reliable than lenis.velocity with immediate scroll)
         const rawDelta = Math.abs(scroll - lastScrollRef.current);
@@ -35,48 +23,41 @@ const WalkingCharacter = ({ className, style, stride = 50 }) => {
         // High retention (0.8) ensures animation continues through short hiccups
         smoothedDeltaRef.current = (smoothedDeltaRef.current * 0.8) + (rawDelta * 0.2);
 
-        // DEBUG
-        debugState.velocity = rawDelta;
-        debugState.smoothedVelocity = smoothedDeltaRef.current;
-        debugState.scrollX = scroll;
-
         lastScrollRef.current = scroll;
+
+        let frameIndex = 0;
 
         // If movement is negligible, reset to standing (frame 0)
         // Threshold adjusted for smoothed value. Lowered to 0.05 to hold walk longer.
-        if (smoothedDeltaRef.current < 0.05) {
-            setCurrentFrame(prev => (prev !== 0 ? 0 : prev));
-            return;
+        if (smoothedDeltaRef.current >= 0.05) {
+            // Calculate frame based on distance traveled
+            // stride = pixels per frame
+            // Handle negative scroll (overscroll) with robust modulo
+            frameIndex = Math.floor(scroll / stride) % TOTAL_FRAMES;
+            if (frameIndex < 0) frameIndex += TOTAL_FRAMES;
         }
 
-        // Calculate frame based on distance traveled
-        // stride = pixels per frame
-        // Handle negative scroll (overscroll) with robust modulo
-        let frameIndex = Math.floor(scroll / stride) % frames.length;
-        if (frameIndex < 0) frameIndex += frames.length;
-
-        // DEBUG
-        debugState.frame = frameIndex;
-
-        // Track visual update frequency
-        const now = performance.now();
-        debugState.animationDelta = now - debugState.lastFrameTime;
-        debugState.lastFrameTime = now;
-
-        setCurrentFrame(frameIndex);
+        // Apply Background Position directly
+        // Formula for background-position percentage: (index / (total - 1)) * 100%
+        // This maps the Nth frame to the viewport.
+        const positionPercentage = (frameIndex / (TOTAL_FRAMES - 1)) * 100;
+        divRef.current.style.backgroundPosition = `0% ${positionPercentage}%`;
     });
 
-    if (frames.length === 0) return null;
-
-    const CurrentComponent = frames[currentFrame];
-
     return (
-        <div className={className} style={style}>
-            <CurrentComponent
-                className="w-full h-full doodle-svg"
-                style={{ vectorEffect: 'non-scaling-stroke' }}
-            />
-        </div>
+        <div
+            ref={divRef}
+            className={className}
+            style={{
+                ...style,
+                backgroundImage: `url(${walkingSprite})`,
+                backgroundSize: `100% ${TOTAL_FRAMES * 100}%`, // Width 100%, Height 1100% of container
+                backgroundRepeat: 'no-repeat',
+                willChange: 'background-position',
+            }}
+            role="img"
+            aria-label="Walking Character"
+        />
     );
 };
 

@@ -4,6 +4,8 @@ import { useLenis } from 'lenis/react';
 import { useControls, folder } from 'leva';
 import { useMedia } from 'react-use';
 import ArtFrame from './ArtFrame';
+import { findVisibleRange } from '../utils/binarySearch';
+import SvgLoader from './SvgLoader';
 import FramedMedia from './FramedMedia';
 import WalkingCharacter from './WalkingCharacter';
 import { galleryData } from '../data/useGalleryData';
@@ -115,50 +117,27 @@ const GalleryTrack = ({ onReady }) => {
         const viewportW = window.innerWidth;
         const buffer = viewportW * 0.5;
 
-        // Crowd
+        // Crowd - Moves closer to 0 (slower) relative to camera, or whatever parallax calc is.
+        // Wait, GalleryTrack logic: container x = -scroll * (1 - parallax).
+        // To find "what part of content is at viewport 0": 
+        // 0 = canvasX + containerX => canvasX = -containerX.
+        // contentPos = scrollVal * (1 - crowdParallax). 
+        // This logic is preserved from the original code.
         const crowdContentPos = scrollVal * (1 - crowdParallax);
         const crowdStart = crowdContentPos - buffer;
         const crowdEnd = crowdContentPos + viewportW + buffer;
 
-        let cStart = 0;
-        let cEnd = crowdDoodles.length;
-
-        for (let i = 0; i < crowdDoodles.length; i++) {
-            if (crowdDoodles[i].left + crowdDoodles[i].baseWidth > crowdStart) {
-                cStart = i;
-                break;
-            }
-        }
-        for (let i = cStart; i < crowdDoodles.length; i++) {
-            if (crowdDoodles[i].left > crowdEnd) {
-                cEnd = i;
-                break;
-            }
-        }
+        const crowdRange = findVisibleRange(crowdDoodles, crowdStart, crowdEnd);
 
         // Foreground
         const fgContentPos = scrollVal * (1 - fgParallax);
         const fgStart = fgContentPos - buffer;
         const fgEnd = fgContentPos + viewportW + buffer;
 
-        let fStart = 0;
-        let fEnd = foregroundDoodles.length;
+        const fgRange = findVisibleRange(foregroundDoodles, fgStart, fgEnd);
 
-        for (let i = 0; i < foregroundDoodles.length; i++) {
-            if (foregroundDoodles[i].left + foregroundDoodles[i].baseWidth > fgStart) {
-                fStart = i;
-                break;
-            }
-        }
-        for (let i = fStart; i < foregroundDoodles.length; i++) {
-            if (foregroundDoodles[i].left > fgEnd) {
-                fEnd = i;
-                break;
-            }
-        }
-
-        setVisibleCrowdRange(prev => (prev.start === cStart && prev.end === cEnd) ? prev : { start: cStart, end: cEnd });
-        setVisibleFgRange(prev => (prev.start === fStart && prev.end === fEnd) ? prev : { start: fStart, end: fEnd });
+        setVisibleCrowdRange(prev => (prev.start === crowdRange.start && prev.end === crowdRange.end) ? prev : crowdRange);
+        setVisibleFgRange(prev => (prev.start === fgRange.start && prev.end === fgRange.end) ? prev : fgRange);
     };
 
     useEffect(() => {
@@ -174,7 +153,6 @@ const GalleryTrack = ({ onReady }) => {
 
     // DEBUG: Log active counts
     useEffect(() => {
-        // console.log(`[Virtualization] Active Nodes - Crowd: ${visibleCrowdDoodles.length}, Foreground: ${visibleForegroundDoodles.length} (Total Generated: ${crowdDoodles.length + foregroundDoodles.length})`);
     }, [visibleCrowdDoodles.length, visibleForegroundDoodles.length, crowdDoodles.length, foregroundDoodles.length]);
 
     // --- PRELOADING LOGIC ---
@@ -554,7 +532,8 @@ const GalleryTrack = ({ onReady }) => {
                                     containIntrinsicSize: `${doodle.baseWidth}px 200px`,
                                 }}
                             >
-                                <doodle.Component
+                                <SvgLoader
+                                    src={doodle.src}
                                     style={{ width: '100%', height: 'auto' }}
                                     className="doodle-svg"
                                 />
@@ -577,7 +556,11 @@ const GalleryTrack = ({ onReady }) => {
                             const absoluteIndex = visibleCrowdRange.start + i;
                             return (
                                 <div key={`crowd-${absoluteIndex}`} className="absolute bottom-0" style={{ left: `${doodle.left}px`, width: `${doodle.baseWidth * crowdScale}px`, transform: `rotate(${doodle.rotation}deg) scaleX(${doodle.scaleX})`, transformOrigin: 'bottom center', contentVisibility: 'auto', containIntrinsicSize: `${doodle.baseWidth * crowdScale}px 200px` }}>
-                                    <doodle.Component style={{ width: '100%', height: 'auto' }} className="doodle-svg" />
+                                    <SvgLoader
+                                        src={doodle.src}
+                                        style={{ width: '100%', height: 'auto' }}
+                                        className="doodle-svg"
+                                    />
                                 </div>
                             );
                         })}
@@ -608,7 +591,11 @@ const GalleryTrack = ({ onReady }) => {
                             const absoluteIndex = visibleFgRange.start + i;
                             return (
                                 <div key={`fg-${absoluteIndex}`} className="absolute bottom-0" style={{ left: `${doodle.left}px`, width: `${doodle.baseWidth * fgScale}px`, transform: `rotate(${doodle.rotation}deg) scaleX(${doodle.scaleX})`, transformOrigin: 'bottom center', marginBottom: `${fgBottom}%`, contentVisibility: 'auto', containIntrinsicSize: `${doodle.baseWidth * fgScale}px 400px` }}>
-                                    <doodle.Component style={{ width: '100%', height: 'auto' }} className="doodle-svg" />
+                                    <SvgLoader
+                                        src={doodle.src}
+                                        style={{ width: '100%', height: 'auto' }}
+                                        className="doodle-svg"
+                                    />
                                 </div>
                             );
                         })}

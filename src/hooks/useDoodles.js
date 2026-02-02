@@ -1,17 +1,17 @@
 import { useMemo } from 'react';
 
-// Import Doodles as React Components
+// Import Doodles as URLs (for lazy loading img tags)
 // relying on Vite's glob import
-const doodleModules = import.meta.glob('../assets/doodle/*.svg', { eager: true, query: '?react' });
-const DoodleComponents = Object.values(doodleModules).map(mod => mod.default);
+const doodleModules = import.meta.glob('../assets/doodle/characterDoodles/*.svg', { eager: true });
+const DoodleUrls = Object.values(doodleModules).map(mod => mod.default);
 
-import Lamp1 from '../assets/doodle/lamps/lamp.svg?react';
-import Lamp2 from '../assets/doodle/lamps/lamp-1.svg?react';
+import Lamp1 from '../assets/doodle/lamps/lamp.svg';
+import Lamp2 from '../assets/doodle/lamps/lamp-1.svg';
 const LampConfigs = [
-    { Component: Lamp1, width: 60 },  // lamp.svg (smaller)
-    { Component: Lamp2, width: 120 }  // lamp-1.svg (bigger)
+    { src: Lamp1, width: 60 },  // lamp.svg (smaller)
+    { src: Lamp2, width: 120 }  // lamp-1.svg (bigger)
 ];
-// console.log('Explicitly Loaded Lamps:', LampComponents); // Remove or update log
+
 
 // Simple seeded random generator (Linear Congruential Generator)
 const createSeededRandom = (seed) => {
@@ -69,9 +69,9 @@ export function useDoodles({
             const count = Math.ceil(cycleLength / layerDensity);
 
             for (let i = 0; i < count; i++) {
-                if (DoodleComponents.length === 0) break;
+                if (DoodleUrls.length === 0) break;
                 // Pick random doodle
-                const Doodle = DoodleComponents[Math.floor(rng() * DoodleComponents.length)];
+                const doodleSrc = DoodleUrls[Math.floor(rng() * DoodleUrls.length)];
 
                 const sectionWidth = cycleLength / count;
                 const basePos = i * sectionWidth;
@@ -81,7 +81,7 @@ export function useDoodles({
                 const relativeLeft = Math.max(0, basePos + jitter);
 
                 masterItems.push({
-                    Component: Doodle,
+                    src: doodleSrc,
                     relativeLeft, // Store relative pos
                     rotation: 0,
                     scaleX: rng() > 0.5 ? 1 : -1,
@@ -133,7 +133,7 @@ export function useDoodles({
             for (let i = 0; i < count; i++) {
                 if (LampConfigs.length === 0) break;
                 const config = LampConfigs[Math.floor(rng() * LampConfigs.length)];
-                const { Component, width } = config;
+                const { src, width } = config;
 
                 const sectionWidth = cycleLength / count;
                 const basePos = i * sectionWidth;
@@ -141,7 +141,7 @@ export function useDoodles({
                 const relativeLeft = Math.max(0, basePos + jitter);
 
                 masterItems.push({
-                    Component,
+                    src,
                     relativeLeft,
                     rotation: 0,
                     scaleX: rng() > 0.5 ? 1 : -1,

@@ -4,7 +4,6 @@ import { useIntersection } from 'react-use';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import FramedMedia from './FramedMedia';
-import { debugState } from '../debugState'; // DEBUG
 
 import ProjectorSvg from '../assets/doodle/projector/projector.svg?react';
 
@@ -15,9 +14,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
     const [isLoaded, setIsLoaded] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
-    if (item.lightboxEmbed) {
-        console.log("Embed Item Detected:", item.id, item.lightboxEmbed);
-    }
+
 
     // 0. CONSTANTS & CALCULATIONS (Move to top)
     // Calculate random scale (0.8 to 1.0) deterministically based on ID
@@ -52,7 +49,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
         // MEMORY OPTIMIZATION: Reduce buffer on mobile to prevent OOM/Overheating
         // Desktop: 600px (~30-50vw) provides smooth experience
         // Mobile: 200px (just offscreen) ensures we unload aggressively
-        rootMargin: isMobile ? '200px' : '600px',
+        rootMargin: isMobile ? '400px' : '600px',
         threshold: 0,        // Trigger as soon as it touches the buffer
     });
 
@@ -99,12 +96,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
         };
     }, []);
 
-    // DEBUG: Track focused item
-    useEffect(() => {
-        if (isFocused) {
-            debugState.nearestItem = item.id || 'Unknown';
-        }
-    }, [isFocused, item.id]);
+
 
     // Focus Mode Playback
     // Only play video when strictly focused (in color)
@@ -271,7 +263,7 @@ const ArtFrame = ({ item, index, style, onToggleLightbox, isMobile }) => {
 
             {/* Date Label - Positioned bottom-right outside the frame (Virtualized) */}
             {
-                item.date && !item.lightboxEmbed && isLoaded && (
+                item.date && !item.lightboxEmbed && (
                     <div
                         className="absolute bottom-0 left-[100%] ml-6 bg-white border-[1.5px] border-black px-2 py-1 text-sm font-mono whitespace-nowrap z-20"
                     >
